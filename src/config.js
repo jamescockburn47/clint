@@ -31,6 +31,10 @@ const ConfigSchema = z.object({
   AUTH_STATE_PATH: z.string().optional().default('./auth_state'),
   PAIRING_PHONE_NUMBER: z.string().optional().default(''),
 
+  // Moorstead game integration
+  MOORSTEAD_ENABLED: z.string().optional().default('true').transform(v => v !== 'false').pipe(z.boolean()),
+  MOORSTEAD_JID: z.string().optional().default(''),
+
   // Owner (James)
   OWNER_JID: z.string().optional().default(''),
   OWNER_LID: z.string().optional().default(''),
@@ -159,6 +163,9 @@ const config = {
   dailyCallLimit: env.DAILY_CALL_LIMIT,
   authStatePath: env.AUTH_STATE_PATH,
   pairingPhoneNumber: env.PAIRING_PHONE_NUMBER,
+
+  moorsteadEnabled: env.MOORSTEAD_ENABLED,
+  moorsteadJid: env.MOORSTEAD_JID,
 
   ownerJid: env.OWNER_JID,
   ownerLid: env.OWNER_LID,
