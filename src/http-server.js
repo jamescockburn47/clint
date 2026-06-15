@@ -84,6 +84,19 @@ export function startHttpServer(port, deps) {
       return;
     }
 
+    if (req.method === 'POST' && path === '/api/moorstead-event') {
+      if (!checkAuth(req)) return json(res, 401, { error: 'Unauthorized' });
+      if (!config.moorsteadEnabled) return json(res, 200, { ok: true, disabled: true });
+      try {
+        const evt = JSON.parse(await readBody(req));
+        const { ingestMoorsteadEvent } = await import('./moorstead/ingest.js');
+        const result = await ingestMoorsteadEvent(evt, {
+          send: (text) => sendProactiveMessage(config.moorsteadJid || config.ownerJid, text),
+        });
+        return json(res, result.ok ? 200 : 400, result);
+      } catch (err) { return json(res, 500, { error: err.message }); }
+    }
+
     if (path === '/api/status') {
       if (!checkAuth(req)) return json(res, 401, { error: 'Unauthorized' });
       const s = getActiveSock();
@@ -623,4 +636,6 @@ export function startHttpServer(port, deps) {
   server.listen(port, () => logger.info({ port }, 'HTTP server started'));
 
   startWidgetRefresh();
+
+  return server;
 }
