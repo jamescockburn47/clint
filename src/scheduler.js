@@ -26,6 +26,7 @@ import { checkImprove } from './overnight/improve-task.js';
 import { tickLqcMonitor } from './tasks/lqc-monitor.js';
 import { checkWeeklyDigest } from './tasks/lqc-weekly-digest.js';
 import { checkFailureNudge } from './tasks/lqc-bot-failure-nudge.js';
+import { checkMoorsteadDigest } from './tasks/moorstead-digest.js';
 import config from './config.js';
 import logger from './logger.js';
 
@@ -105,6 +106,7 @@ async function runScheduler() {
   await runTask('sideGigMeetings', () => checkSideGigMeetings(sendFn));
   await runTask('morningBriefing', () => checkMorningBriefing(sendFn, todayStr, hours, minutes));
   await runTask('weeklyReview', () => checkWeeklyReview(sendFn, todayStr, hours));
+  await runTask('moorsteadDigest', () => checkMoorsteadDigest(sendFn, todayStr, hours, minutes));
 
   // New four-stage overnight pipeline (spec §4)
   await runTask('consolidateShadow', () => checkConsolidateShadow(todayStr, hours, minutes));
