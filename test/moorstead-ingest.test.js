@@ -38,9 +38,9 @@ describe('moorstead/ingest', () => {
   });
 
   it('sends a session digest when a leave empties the room', async () => {
-    await ingestMoorsteadEvent({ type: 'join', name: 'Alice', room: 'moor', ts: 1 }, { send, store });
+    await ingestMoorsteadEvent({ type: 'join', name: 'Alice', room: 'moor', pid: 'a1', ts: 1 }, { send, store });
     sent.length = 0;
-    await ingestMoorsteadEvent({ type: 'leave', name: 'Alice', room: 'moor', ts: 2 }, { send, store });
+    await ingestMoorsteadEvent({ type: 'leave', name: 'Alice', room: 'moor', pid: 'a1', ts: 2 }, { send, store });
     assert.ok(sent.some((m) => /left moor/.test(m)), 'leave ping');
     assert.ok(sent.some((m) => /moor is now empty/.test(m)), 'session digest');
   });
@@ -49,5 +49,13 @@ describe('moorstead/ingest', () => {
     const r = await ingestMoorsteadEvent({ type: 'bad', room: 'moor' }, { send, store });
     assert.equal(r.ok, false);
     assert.equal(sent.length, 0);
+  });
+
+  it('does not throw when send fails; the event is still stored', async () => {
+    const boom = () => { throw new Error('whatsapp down'); };
+    const r = await ingestMoorsteadEvent({ type: 'join', name: 'Alice', room: 'moor', pid: 'a1', ts: 1 }, { send: boom, store });
+    assert.equal(r.ok, true);
+    assert.equal(r.notified, false);
+    assert.equal(store.roomCount('moor'), 1);
   });
 });

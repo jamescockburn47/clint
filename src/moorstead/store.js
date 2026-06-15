@@ -18,10 +18,10 @@ export function createStore({ dataDir = join('data', 'moorstead'), maxRecent = 5
     recent.push(e);
     if (recent.length > maxRecent) recent.shift();
 
-    if (e.type === 'join') {
+    if (e.type === 'join' && e.pid) {
       if (!presence.has(e.room)) presence.set(e.room, new Set());
       presence.get(e.room).add(e.pid);
-    } else if (e.type === 'leave') {
+    } else if (e.type === 'leave' && e.pid) {
       presence.get(e.room)?.delete(e.pid);
     }
 

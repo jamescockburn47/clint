@@ -44,4 +44,9 @@ describe('moorstead/store', () => {
     assert.ok(existsSync(f));
     assert.match(readFileSync(f, 'utf8'), /"type":"join"/);
   });
+
+  it('ignores presence for a join with no pid', () => {
+    store.recordEvent({ type: 'join', room: 'moor', ts: 1 });
+    assert.equal(store.roomCount('moor'), 0);
+  });
 });

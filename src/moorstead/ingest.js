@@ -21,16 +21,21 @@ export async function ingestMoorsteadEvent(evt, { send, store = defaultStore } =
   const stored = store.recordEvent(evt);
   let notified = false;
 
-  if (isNotable(stored) && typeof send === 'function') {
-    await send(formatNotable(stored));
-    notified = true;
+  // Notify is best-effort: the event is already durably stored, so a failed
+  // WhatsApp send must not turn a successful ingest into an error.
+  if (isNotable(stored)) {
+    notified = (await trySend(send, formatNotable(stored))) || notified;
   }
 
   // Session-end: a leave that drops the room to empty.
-  if (stored.type === 'leave' && wasOccupied && store.roomCount(evt.room) === 0 && typeof send === 'function') {
-    await send(composeSessionDigest(evt.room, store.recentEvents({ room: evt.room })));
-    notified = true;
+  if (stored.type === 'leave' && wasOccupied && store.roomCount(evt.room) === 0) {
+    notified = (await trySend(send, composeSessionDigest(evt.room, store.recentEvents({ room: evt.room })))) || notified;
   }
 
   return { ok: true, stored, notified };
+}
+
+async function trySend(send, text) {
+  if (typeof send !== 'function') return false;
+  try { await send(text); return true; } catch { return false; }
 }
