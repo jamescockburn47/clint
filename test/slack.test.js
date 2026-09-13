@@ -40,6 +40,19 @@ test('only owner mentions for the exact app/team/channel enter the inbox', () =>
     assert.equal(acceptMention(v, cfg, bot), null);
   }
 });
+
+test('owner private-channel messages need no mention; wrong audiences and bot loops fail closed', t => {
+  const plain = body(); Object.assign(plain.event, { type: 'message', channel_type: 'group', text: 'hello' });
+  const accepted = acceptMention(plain, cfg, bot); assert.ok(accepted);
+  for (const patch of [{ channel_type: 'im' }, { channel_type: 'channel' }, { channel_type: undefined },
+    { user: 'U99999999' }, { user: bot }, { bot_id: 'B1' }, { subtype: 'message_changed' },
+    { channel: 'C99999999' }, { text: ' ' }]) {
+    const value = structuredClone(plain); Object.assign(value.event, patch);
+    assert.equal(acceptMention(value, cfg, bot), null);
+  }
+  const store = fixture(t); store.enqueue(accepted, 1000);
+  assert.equal(store.enqueue(acceptMention(body(), cfg, bot), 1001), 'duplicate');
+});
 test('channel metadata must prove private, joined, unshared and unarchived', () => {
   assert.equal(allowedChannel(channel(), cfg), true);
   for (const name of ['is_private', 'is_member', 'is_archived', 'is_shared', 'is_ext_shared', 'is_org_shared']) {
@@ -151,6 +164,21 @@ test('adapter rejects missing and unavailable core results', async () => {
   for (const result of [null, { text: '' }, { text: 'Unavailable', meta: { provider: 'unavailable' } }]) {
     const generate = makeSlackGenerator(cfg, { getResponse: async () => result });
     await assert.rejects(generate(event, []), /invalid_core_output/);
+  }
+});
+
+test('internal control replies are regenerated once and never delivered', async () => {
+  const event = { team: cfg.teamId, channel: cfg.channelId, owner: cfg.ownerId, text: 'hello' };
+  for (const marker of ['[INVALID]', '[SILENT]', '[APPROVED]']) {
+    assert.throws(() => replyPayload(event, marker), /invalid_reply/);
+    let calls = 0;
+    const generate = makeSlackGenerator(cfg, { getResponse: async (_text, _mode, _owner, _image, _chat, options) => {
+      assert.equal(options.conversation.readOnly, true);
+      return { text: ++calls === 1 ? marker : 'Hi James.' };
+    } });
+    assert.equal(await generate(event, []), 'Hi James.'); assert.equal(calls, 2);
+    const bad = makeSlackGenerator(cfg, { getResponse: async () => ({ text: marker }) });
+    await assert.rejects(bad(event, []), /invalid_core_output/);
   }
 });
 test('model timeout remains active during body parsing, and errors cannot echo source text', async () => {

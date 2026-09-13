@@ -277,7 +277,7 @@ class LLMService {
           defaultMaxTokens,
         }),
         requestId,
-        ...(provider === 'qwen' && ['conversational', 'recall', 'email'].includes(category) ? { enableThinking: false } : {}),
+        ...(provider === 'qwen' && ['conversational', 'recall', 'email', 'system'].includes(category) ? { enableThinking: false } : {}),
         system,
         messages,
         ...(hasTools ? { tools: cachedTools } : {}),

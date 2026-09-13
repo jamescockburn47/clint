@@ -4,14 +4,29 @@
 
 The separate minimal-prompt pilot has been replaced in source. Slack now invokes
 `LLMService.getResponse`: Clint's existing prompt, Cortex, category routing,
-planner, tools, critique and deterministic outbound filter. No Slack app or service
-has been installed yet. Production readiness still requires the actual Slack entry
-journey below. Do not use the superseded minimal-file deployment instructions.
+planner, tools, critique and deterministic outbound filter. The app and EVO service
+are installed and running; boot startup is enabled. Release `fea2c02bc6066aba`
+passed 1,402 tests (zero failed, one skipped), independent review and the actual
+Slack entry journey. Three owner mentions received threaded replies in 21.78,
+23.47 and 24.73 seconds. Recall survived a controlled restart with no duplicate
+deliveries. Evidence is in the workspace-level `evidence/slack-live-release-proof.json`.
+Do not use the superseded minimal-file deployment instructions.
 
 James selected `clint-qtj3570.slack.com` (workspace `T0C2CKVEPKJ`) after LQ's app
 limit blocked installation. This is distinct from the mistyped `clint-ktj3570`.
-The browser still needs a signed-in session for Clint. LQ remains the eventual
-preferred workspace.
+The private unshared channel is `clint-private` (`C0C1N0VKVUL`), containing James
+and Clint only. Owner: `U0C1GAY9D0E`; app: `A0C1N0KGRNG`. Mention `@Clint` in
+the channel and in follow-up thread replies. Slack DMs are not connected. LQ remains
+the eventual preferred workspace.
+
+The initial channel runs colleague policy with read-only tools and archive memory
+disabled. Thread recall is active. Broader personalization and learning have not
+been activated by this deployment. Some generated capability descriptions still
+refer generically to owner DMs or memory; those statements do not establish that
+such Slack features are connected. Basic conversation/recall/email requests use
+Qwen's non-thinking mode; planning, research and critique retain their settings.
+A system-capability response took 104 seconds in the synthetic probe, so latency
+outside the basic conversation path remains a limitation.
 
 ## Preserved controls and deliberate changes
 
@@ -92,6 +107,10 @@ source-hashed EVO stage, installs the lockfile in a clean environment, runs veri
 and invokes the real shared-core synthetic Qwen probe. Inspect its replies: codeword
 and blocked-topic assertions alone do not certify personality or factual quality.
 Evidence is in `../evidence/slack-stage.json` and `../evidence/slack-evo-*`.
+`../install_slack_release.py` implements the reviewed first-install path and
+requires a stage-matched zero-exit receipt and matching remote verification/probe
+logs. It refuses an existing installation. Later upgrades must preserve state,
+retain the previous release, and verify rollback; do not rerun the first installer.
 
 After these checks and independent review pass, install the full reviewed core
 source and pinned production dependencies into a versioned root-owned directory
@@ -108,7 +127,9 @@ then start only `clint-slack`; enable boot startup after the entry journey passe
 Actual entry proof: authenticate installation, confirm private/unshared channel,
 owner mention -> threaded answer, second mention -> thread recall, restart -> no
 duplicate delivery and retained recall. Verify non-owner/other-channel events are
-rejected. Health endpoints and model probes do not substitute for Slack delivery.
+rejected. The deployed policy counterexamples passed; no second real user was
+introduced merely for testing. Health endpoints and model probes do not substitute
+for Slack delivery.
 
 Rollback: stop only Clint's Slack service, restore the previous symlink/unit and
 restart after verification. Preserve SQLite and runtime state. An uncertain Slack

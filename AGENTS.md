@@ -14,8 +14,8 @@ not implemented. Do not present policy v1 below as the finished learning capabil
 Keep existing safeguards until replacements pass.
 
 The separate minimal-prompt pilot has been replaced in source by a shared-core
-`src/slack/model.js` adapter. Production release still requires verification of
-transport-neutral versions of Clint's existing controls and actual Slack delivery. See
+`src/slack/model.js` adapter. Release `fea2c02bc6066aba` is running on the EVO with
+boot startup enabled; controls and actual Slack delivery/restart recall were verified. See
 `docs/clint-existing-control-audit.md`. Do not replace live EVO group policies with
 repository defaults, or treat a non-WhatsApp ID as a private owner conversation.
 
