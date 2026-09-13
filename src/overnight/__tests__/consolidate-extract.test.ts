@@ -100,38 +100,6 @@ describe('overnight/consolidate-extract.ConsolidateExtractor', () => {
     assert.match(result.errors[0]!.file, /2026-04-09-bad\.jsonl/);
   });
 
-  it('one ungrounded selection is a rejection, never a file error', async () => {
-    writeFileSync(join(logDir, '2026-04-09-a.jsonl'),
-      JSON.stringify({ sender: 'James', isBot: false, text: 'I prefer email to phone calls.' }) + '\n' +
-      JSON.stringify({ sender: 'MG', isBot: false, text: 'Fridays are better for the school run.' }) + '\n',
-    );
-    const hallucinating: ExtractClient = {
-      extractCandidates: async conversation => ({ candidates: [
-        { message_id: JSON.parse(conversation)[0].id, category: 'preference' },
-        { message_id: '2026-04-09-a.jsonl:99', category: 'preference' },
-        { message_id: JSON.parse(conversation)[1].id, category: 'invented_category' },
-      ] }),
-    };
-    const result = await new ConsolidateExtractor({ client: hallucinating, logDir }).extractForDate('2026-04-09');
-    assert.equal(result.filesProcessed, 1);
-    assert.equal(result.candidates.length, 1);
-    assert.equal(result.errors.length, 0);
-    assert.equal(result.rejected, 2);
-    assert.deepEqual(result.rejections.map(r => r.reason), ['source_missing_or_ambiguous', 'category_not_promotable']);
-  });
-
-  it('a torn trailing line loses only that line, with its position recorded', async () => {
-    writeFileSync(join(logDir, '2026-04-09-a.jsonl'),
-      JSON.stringify({ sender: 'James', isBot: false, text: 'Book the York train for Thursday.' }) + '\n' +
-      '{"sender":"James","isBot":false,"text":"cut off mid-wr',
-    );
-    const result = await new ConsolidateExtractor({ client: mockClient, logDir }).extractForDate('2026-04-09');
-    assert.equal(result.filesProcessed, 1);
-    assert.equal(result.candidates.length, 1);
-    assert.equal(result.errors.length, 0);
-    assert.deepEqual(result.rejections, [{ file: '2026-04-09-a.jsonl', line: 2, reason: 'unreadable_line' }]);
-  });
-
   it('propagates EVO extract errors into the errors array and continues', async () => {
     writeFileSync(join(logDir, '2026-04-09-a.jsonl'),
       JSON.stringify({ sender: 'James', isBot: false, text: 'a valid line with enough text to process' }) + '\n' +

@@ -3,19 +3,16 @@ import { WebClient } from '@slack/web-api';
 import { loadSlackConfig } from './config.js';
 import { acceptMention, allowedChannel } from './policy.js';
 import { SlackStore } from './store.js';
-import { SlackWorker, errorCode } from './worker.js';
+import { SlackWorker } from './worker.js';
 import { makeSlackGenerator, SLACK_PROMPT_VERSION } from './model.js';
 import coreConfig from '../config.js';
 import { validateSlackCoreConfig } from './core-config.js';
 import { checkEvoHealth } from '../memory.js';
 
-// Status words plus an optional short error code. Never source text, tokens or SDK bodies.
-const report = (status, detail) => console.log(JSON.stringify(
-  detail ? { component: 'clint_slack', status, detail } : { component: 'clint_slack', status }));
+const report = status => console.log(JSON.stringify({ component: 'clint_slack', status }));
 // Never print SDK messages/arguments: they can include tokens, socket URLs or event bodies.
 const sdkLogger = { debug() {}, info() {}, warn() { report('sdk_warning'); },
   error() { report('sdk_error'); }, setLevel() {}, getLevel() { return 'error'; }, setName() {} };
-let shutdown = code => process.exit(code);
 
 async function main() {
   const config = loadSlackConfig();
@@ -35,7 +32,7 @@ async function main() {
   const socket = new SocketModeClient({ appToken: config.appToken, logger: sdkLogger,
     clientOptions: { logger: sdkLogger, retryConfig: { retries: 2 }, timeout: 15000 } });
   let stopping = false;
-  const drain = () => worker.drain().catch(err => { report('worker_storage_failure', errorCode(err)); shutdown(1); });
+  const drain = () => worker.drain().catch(() => { report('worker_storage_failure'); shutdown(1); });
   socket.on('slack_event', async ({ body, ack }) => {
     try {
       if (stopping) return;
@@ -45,32 +42,25 @@ async function main() {
       await ack();
       report(outcome);
       if (outcome === 'queued') void drain();
-    } catch (err) { report('inbox_or_ack_failed', errorCode(err)); }
+    } catch { report('inbox_or_ack_failed'); }
   });
   socket.on('error', () => report('socket_error'));
   socket.on('connected', () => report('socket_connected'));
   const timer = setInterval(() => void drain(), 15000);
   const healthTimer = setInterval(() => void checkEvoHealth({ recover: false }), 60000);
-  const inboxTimer = setInterval(() => {
-    const stuck = store.counts().filter(row => ['failed', 'uncertain', 'blocked'].includes(row.state));
-    if (stuck.length) report('inbox_needs_attention', stuck.map(row => `${row.state}=${row.count}`).join(','));
-  }, 3600000);
-  shutdown = async code => {
+  async function shutdown(code) {
     if (stopping) return;
     stopping = true;
     clearInterval(timer);
     clearInterval(healthTimer);
-    clearInterval(inboxTimer);
     try { await socket.disconnect(); await worker.stop(); store.close(); }
-    catch (err) { report('shutdown_failed', errorCode(err)); code = 1; }
+    catch { report('shutdown_failed'); code = 1; }
     process.exit(code);
-  };
+  }
   process.once('SIGTERM', () => void shutdown(0));
   process.once('SIGINT', () => void shutdown(0));
   await socket.start();
   report(`ready:${SLACK_PROMPT_VERSION}`);
   void drain();
 }
-// A stray rejection must stop the process cleanly rather than leave a half-sent row behind.
-process.on('unhandledRejection', err => { report('unhandled_rejection', errorCode(err)); void shutdown(1); });
-main().catch(err => { report('startup_failed', errorCode(err)); process.exit(1); });
+main().catch(() => { report('startup_failed'); process.exit(1); });

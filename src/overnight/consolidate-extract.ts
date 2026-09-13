@@ -13,15 +13,10 @@ export interface ExtractClient {
 }
 export interface ConsolidateExtractorOptions { client: ExtractClient; logDir: string }
 export interface ExtractError { file: string; reason: string }
-/** A single selection or line that could not be grounded. The rest of the file still counts. */
-export interface ExtractRejection { file: string; line?: number; reason: string }
 export interface ExtractResult {
   filesProcessed: number;
   candidates: MemoryCandidate[];
-  /** File- or service-level failures: the source could not be processed at all. */
   errors: ExtractError[];
-  /** Per-item rejections: one bad selection or torn line never discards a file. */
-  rejections: ExtractRejection[];
   rejected: number;
 }
 
@@ -30,7 +25,7 @@ export class ConsolidateExtractor {
 
   /** Process bounded source batches. Failure differs from an explicitly empty result. */
   async extractForDate(date: string): Promise<ExtractResult> {
-    const result: ExtractResult = { filesProcessed: 0, candidates: [], errors: [], rejections: [], rejected: 0 };
+    const result: ExtractResult = { filesProcessed: 0, candidates: [], errors: [], rejected: 0 };
     let files: string[];
     try { files = await readdir(this.opts.logDir); }
     catch (err) {
@@ -38,28 +33,21 @@ export class ConsolidateExtractor {
       return result;
     }
     const seen = new Set<string>();
-    const reject = (file: string, reason: string, line?: number) => {
-      result.rejected++;
-      result.rejections.push(line === undefined ? { file, reason } : { file, line, reason });
-    };
     for (const file of files.filter(f => f.startsWith(date) && f.endsWith('.jsonl')).sort()) {
       try {
         const lines = (await readFile(join(this.opts.logDir, file), 'utf8')).split('\n');
         const messages: SourceMessage[] = [];
-        let unreadable = 0;
         for (let i = 0; i < lines.length; i++) {
           const raw = lines[i]!;
           if (!raw.trim()) continue;
-          try { messages.push(readSourceLine(raw, file, i + 1)); }
-          catch { unreadable++; reject(file, 'unreadable_line', i + 1); }
+          messages.push(readSourceLine(raw, file, i + 1));
         }
-        if (!messages.length && unreadable) throw new Error('no_readable_lines');
         const batches: SourceMessage[][] = [];
         let batch: SourceMessage[] = [];
         let chars = 0;
         for (const m of messages) {
           if (m.isBot || !m.text.trim()) continue;
-          if (m.text.length > 2000) { reject(file, 'statement_too_long', m.line); continue; }
+          if (m.text.length > 2000) { result.rejected++; continue; }
           const size = JSON.stringify(m).length;
           if (chars + size > BATCH_CHARS && batch.length) { batches.push(batch); batch = []; chars = 0; }
           batch.push(m); chars += size;
@@ -74,7 +62,8 @@ export class ConsolidateExtractor {
               const key = c.sources[0]!.hash;
               if (!seen.has(key)) { result.candidates.push(c); seen.add(key); }
             } catch (err) {
-              reject(file, (err as Error).message);
+              result.rejected++;
+              result.errors.push({ file, reason: (err as Error).message });
             }
           }
         }

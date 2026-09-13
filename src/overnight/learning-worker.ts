@@ -13,13 +13,6 @@ export interface LearningWorkerOptions {
   explore?: () => Promise<void>;
 }
 
-/** Error class or code for the event log: single line, bounded, never source text. */
-export function failureCode(err: unknown): string {
-  const e = err as { code?: unknown; message?: unknown; name?: unknown } | null;
-  const text = String(e?.code ?? e?.message ?? e?.name ?? 'unknown_error').split('\n')[0]!.trim();
-  return text.slice(0, 120) || 'unknown_error';
-}
-
 /** Run once for a date. Interrupted locks require inspection, never automatic deletion. */
 export async function runLearningWorker(opts: LearningWorkerOptions): Promise<'completed' | 'failed' | 'already_completed'> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(opts.date)) throw new Error('invalid run date');
@@ -42,9 +35,9 @@ export async function runLearningWorker(opts: LearningWorkerOptions): Promise<'c
     const run = async (stage: 'consolidate' | 'operations' | 'improve' | 'report', name: string, task?: () => Promise<void>) => {
       if (!task) return;
       try { await task(); }
-      catch (err) {
+      catch {
         await appendEvent({ stage, phase: name, inputs: [], outputs: [], verdict: 'failed',
-          reason: `${name} failed (${failureCode(err)}); remaining independent stages continued.`, evidence_refs: [], rollback_ref: null,
+          reason: `${name} failed; remaining independent stages continued.`, evidence_refs: [], rollback_ref: null,
           budget: { opus_sessions: 0, tokens: 0 } }, { date: opts.date, overnightDir: opts.overnightDir });
       }
     };

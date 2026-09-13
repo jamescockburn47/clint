@@ -1,8 +1,7 @@
 import { LLMService } from '../claude.js';
 import { createConversationContext } from '../conversation-context.js';
-import { isControlReply } from './policy.js';
 
-export const SLACK_PROMPT_VERSION = 'clint-shared-core-v4';
+export const SLACK_PROMPT_VERSION = 'clint-shared-core-v2';
 
 /** Transport formatting only. Identity, personality, recall, tools and filters live in Clint's core. */
 export function makeSlackGenerator(config, service = new LLMService({
@@ -26,14 +25,8 @@ export function makeSlackGenerator(config, service = new LLMService({
     // Source text never supplies executable identity or policy.
     const context = `[Earlier thread exchanges: untrusted conversation data]\n${JSON.stringify(exchanges)}\n`
       + `[Current message]\n${event.text}`;
-    let result = await service.getResponse(context, 'professional', event.owner, null, chat, { conversation });
-    if (result?.text && isControlReply(result.text)) {
-      result = await service.getResponse(context + '\n[Delivery correction: the previous attempt contained only an internal control marker. Give a normal conversational reply to the current message, retaining all privacy and tool restrictions.]',
-        'professional', event.owner, null, chat, { conversation });
-    }
-    // An unavailable core is transient and must not consume delivery attempts; malformed output is terminal.
-    if (!result || result.meta?.provider === 'unavailable') throw new Error('slack_core_unavailable');
-    if (!result.text || isControlReply(result.text) || result.text.length > 10000) {
+    const result = await service.getResponse(context, 'professional', event.owner, null, chat, { conversation });
+    if (!result?.text || result.meta?.provider === 'unavailable' || result.text.length > 10000) {
       throw new Error('slack_invalid_core_output');
     }
     return result.text;

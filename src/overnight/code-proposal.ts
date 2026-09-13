@@ -52,9 +52,8 @@ async function snapshot(root: string, destination: string): Promise<void> {
 }
 
 /** Model output cannot run commands. Retain code, exact patch and both sandbox verdicts. */
-export type CodeProposalStatus = 'review_required' | 'validation_failed' | 'blocked_sandbox_unavailable';
 export async function createCodeProposal(opts: CodeProposalOptions): Promise<{
-  status: CodeProposalStatus; path: string; baseline: SandboxResult; candidate: SandboxResult;
+  status: 'review_required' | 'validation_failed'; path: string; baseline: SandboxResult; candidate: SandboxResult;
 }> {
   assertProposalPath(opts.sourcePath);
   if (!opts.evidenceIds.length) throw new Error('observed_evidence_required');
@@ -86,9 +85,7 @@ export async function createCodeProposal(opts: CodeProposalOptions): Promise<{
     const { stdout: patch } = await git('git', ['diff', '--binary', '--', opts.sourcePath], { cwd: handle.path });
     const patchHash = createHash('sha256').update(patch).digest('hex');
     await writeFile(join(folder, 'candidate.patch'), patch, 'utf8');
-    // A missing sandbox is a blocked capability, never a verdict on the candidate.
-    const status: CodeProposalStatus = baseline.unavailable || candidate.unavailable ? 'blocked_sandbox_unavailable'
-      : candidate.ok ? 'review_required' : 'validation_failed';
+    const status = candidate.ok ? 'review_required' : 'validation_failed';
     await writeFile(join(folder, 'proposal.json'), JSON.stringify({
       id, status, baseSha, patchHash, sourcePath: opts.sourcePath, evidenceIds: opts.evidenceIds,
       branch: handle.branch, worktree: handle.path, baseline, candidate,

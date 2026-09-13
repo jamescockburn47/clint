@@ -30,12 +30,10 @@ export function parseQueuedItem(raw) {
 // --- MemoryClient class (owns connection state, cache, queue) ---
 
 class MemoryClient {
-  constructor({ memoryUrl, fetchJSON, fetchRaw, enabled = true }) {
+  constructor({ memoryUrl, fetchJSON, fetchRaw }) {
     this._memoryUrl = memoryUrl;
     this._fetchJSON = fetchJSON;
     this._fetchRaw = fetchRaw;
-    // EVO_MEMORY_ENABLED=false: never contact or queue for the archive; reads fall through to the (empty) local cache.
-    this._enabled = enabled !== false;
     this._online = false;
     this._consecutiveFailures = 0;
     this._cache = [];
@@ -69,7 +67,6 @@ class MemoryClient {
 
   /** Check if EVO memory service is online, trigger queue drain on recovery */
   async checkHealth({ recover = true } = {}) {
-    if (!this._enabled) return null;
     try {
       const data = await this._fetch('/health', { timeout: TIMEOUTS.MEMORY_HEALTH_CHECK });
       if (data.status === 'online') {
@@ -142,9 +139,7 @@ class MemoryClient {
 
   // --- Store ---
 
-  /** queueOnFailure=false: callers that retry themselves (nightly promotion) must not also leave a queued duplicate. */
-  async store(fact, category, tags, confidence = 0.9, source = 'api', { queueOnFailure = true } = {}) {
-    if (!this._enabled) return { stored: false, offline: true, disabled: true };
+  async store(fact, category, tags, confidence = 0.9, source = 'api') {
     if (this._online) {
       try {
         return await this._fetch('/memory/store', {
@@ -153,10 +148,9 @@ class MemoryClient {
           timeout: TIMEOUTS.MEMORY_STORE,
         });
       } catch (err) {
-        logger.warn({ err: err.message, queued: queueOnFailure }, 'EVO X2 store failed');
+        logger.warn({ err: err.message }, 'EVO X2 store failed, queuing locally');
       }
     }
-    if (!queueOnFailure) return { stored: false, offline: true };
     this._queueItem('text', { type: 'store', fact, category, tags, confidence, source });
     return { stored: false, queued: true };
   }
@@ -609,7 +603,6 @@ const client = new MemoryClient({
   memoryUrl: config.evoMemoryUrl,
   fetchJSON: evoFetchJSON,
   fetchRaw: evoFetchRaw,
-  enabled: config.evoMemoryEnabled,
 });
 
 // --- Facade exports (identical API — zero breaking changes) ---
@@ -631,8 +624,8 @@ async function _invalidateCortexIdentityCache() {
   }
 }
 
-export const storeMemory = async (f, c, t, conf, s, options) => {
-  const result = await client.store(f, c, t, conf, s, options);
+export const storeMemory = async (f, c, t, conf, s) => {
+  const result = await client.store(f, c, t, conf, s);
   if (c === 'identity') _invalidateCortexIdentityCache();
   return result;
 };

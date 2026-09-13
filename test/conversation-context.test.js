@@ -103,9 +103,9 @@ test('concurrent conversations retain separate policy across asynchronous work',
   })));
 });
 
-function core(responses, category = 'conversational') {
+function core(responses) {
   const service = new LLMService({ qwenChatUrl: 'http://127.0.0.1:11435', qwenChatModel: 'qwen3.8-27b',
-    gatherIntelligence: async () => ({ route: { category, source: 'fixture' },
+    gatherIntelligence: async () => ({ route: { category: 'conversational', source: 'fixture' },
       memoryFragment: '', timing: { totalMs: 1, phase1Ms: 1 } }) });
   const requests = [];
   service._qwenClient = { messages: { create: async payload => {
@@ -114,14 +114,6 @@ function core(responses, category = 'conversational') {
   return { service, requests };
 }
 const reply = text => ({ stop_reason: 'end_turn', content: [{ type: 'text', text }], usage: {} });
-
-test('system replies use fast Qwen mode without changing the private channel boundary', async () => {
-  const { service, requests } = core([reply('This channel permits read-only tools.')], 'system');
-  const conversation = make('slack', { localOnly: true, readOnly: true });
-  await service.getResponse('What can you do here?', 'professional', 'owner', null, conversation.conversationId, { conversation });
-  assert.equal(requests[0].enableThinking, false);
-  assert.match(requests[0].system[0].text, /reads only/);
-});
 
 test('real core sends its original prompt and denies a model-invented tool, then filters its answer', async () => {
   const { service, requests } = core([
@@ -151,15 +143,9 @@ test('local policy refuses cloud fallback and incomplete replies', async () => {
       [], [], [], true, 'professional', 'owner', currentConversation().conversationId, 'fixture');
     assert.equal(result, null);
   });
-  // A length-truncated local reply is delivered and flagged; any other unfinished stop is refused.
   const partial = core([{ ...reply('unfinished'), stop_reason: 'max_tokens' }]);
   const conversation = make('slack', { localOnly: true });
   const result = await partial.service.getResponse('Hello', 'professional', 'owner', null,
     conversation.conversationId, { conversation });
-  assert.equal(result.text, 'unfinished');
-  assert.equal(result.meta.truncated, true);
-  const refused = core([{ ...reply('unfinished'), stop_reason: 'refusal' }]);
-  const other = await refused.service.getResponse('Hello', 'professional', 'owner', null,
-    conversation.conversationId, { conversation });
-  assert.equal(other.text, null);
+  assert.equal(result.text, null);
 });
