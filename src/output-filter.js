@@ -1,8 +1,9 @@
 // src/output-filter.js — Code-level output filtering for group security
-// Scans every response BEFORE sending. No prompt injection can bypass this.
+// Scans responses before sending. Pattern matching is defense in depth, not proof against all injection.
 // Deterministic regex/keyword scanning — not LLM-based.
 import { getGroupConfig, getGroupMode } from './group-registry.js';
 import logger from './logger.js';
+import { isGroupConversation } from './conversation-context.js';
 
 // ── BLOCKED PATTERNS BY MODE ──────────────────────────────────────────────────
 // 'project' mode: personal life blocked
@@ -76,7 +77,7 @@ export function resetCanaryToken() {
  */
 export function filterResponse(responseText, chatJid) {
   // No filtering for DMs
-  if (!chatJid || !chatJid.endsWith('@g.us')) {
+  if (!isGroupConversation(chatJid)) {
     return { safe: true, text: responseText };
   }
 
@@ -120,7 +121,7 @@ export function filterResponse(responseText, chatJid) {
   }
 
   if (blocked.length > 0) {
-    logger.warn({ chatJid, mode, blockedCount: blocked.length, patterns: blocked.slice(0, 5) }, 'output-filter: response blocked');
+    logger.warn({ chatJid, mode, blockedCount: blocked.length }, 'output-filter: response blocked');
     return { safe: false, reason: 'content_violation', blocked };
   }
 
@@ -129,26 +130,12 @@ export function filterResponse(responseText, chatJid) {
 
 /**
  * Safe replacement message when a response is blocked.
- * Includes the triggering terms so the owner can diagnose false positives.
+ * Never disclose the triggering private terms to the destination audience.
  */
-export function getBlockedResponse(reason, blocked = []) {
+export function getBlockedResponse(reason) {
   if (reason === 'system_prompt_leak') {
     return "I can't share that information.";
   }
-  if (blocked.length > 0) {
-    const terms = blocked.slice(0, 3).map(b => cleanPattern(b)).filter(Boolean).join(', ');
-    return `My response was blocked by the output filter (matched: ${terms}). I need to rephrase without those terms — ask me again and I'll avoid them.`;
-  }
+  // Matched terms are private diagnostics, never material to echo into the group.
   return "I can't discuss that in this context.";
-}
-
-/** Strip regex syntax from a pattern source to produce a human-readable term. */
-function cleanPattern(src) {
-  return src
-    .replace(/\\b/g, '')
-    .replace(/\\s/g, ' ')
-    .replace(/[^a-zA-Z0-9 |'\-]/g, '')
-    .replace(/\|/g, ', ')
-    .replace(/\s+/g, ' ')
-    .trim();
 }

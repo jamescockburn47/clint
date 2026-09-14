@@ -150,7 +150,8 @@ export function translateOpenAIResponseToAnthropic(oai) {
   }
   // stop_reason mapping: finish_reason 'tool_calls' → 'tool_use',
   // anything else → 'end_turn'.
-  const stopReason = choice?.finish_reason === 'tool_calls' ? 'tool_use' : 'end_turn';
+  const stopReason = choice?.finish_reason === 'tool_calls' ? 'tool_use' :
+    choice?.finish_reason === 'length' ? 'max_tokens' : 'end_turn';
   return {
     content,
     stop_reason: stopReason,
@@ -179,7 +180,7 @@ export function createQwenChatClient({ baseUrl, defaultModel = 'qwen3.6-27b', ti
   if (!baseUrl) throw new Error('createQwenChatClient: baseUrl required');
   const normalisedBase = baseUrl.replace(/\/+$/, '');
 
-  async function create({ model, max_tokens = 1024, system, messages, tools, requestId } = {}) {
+  async function create({ model, max_tokens = 1024, system, messages, tools, requestId, enableThinking } = {}) {
     const url = `${normalisedBase}/v1/chat/completions`;
     const oaiMessages = [];
     const sys = flattenSystem(system);
@@ -193,6 +194,7 @@ export function createQwenChatClient({ baseUrl, defaultModel = 'qwen3.6-27b', ti
       temperature: 0.7,
       cache_prompt: true,                    // llama.cpp whole-prefix cache
       stream: false,
+      ...(typeof enableThinking === 'boolean' ? { chat_template_kwargs: { enable_thinking: enableThinking } } : {}),
     };
     const oaiTools = translateTools(tools);
     if (oaiTools) {
@@ -205,27 +207,28 @@ export function createQwenChatClient({ baseUrl, defaultModel = 'qwen3.6-27b', ti
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     let res;
+    let oai;
     try {
       res = await fetchFn(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: payloadText,
         signal: controller.signal,
+        redirect: 'error',
       });
+      if (!res.ok) {
+        await res.body?.cancel();
+        throw new Error(`qwen-chat ${res.status}`);
+      }
+      oai = await res.json();
     } catch (err) {
-      // Surface as the Anthropic-ish null that LLMService handles.
-      logger.warn({ requestId: requestId || null, err: err.message, url }, 'qwen-chat: request failed');
-      throw err;
+      // Provider errors can echo full prompts. Keep both logs and propagated errors redacted.
+      logger.warn({ requestId: requestId || null, status: res?.status || null }, 'qwen-chat: request failed');
+      throw new Error(res && !res.ok ? `qwen-chat ${res.status}` : 'qwen-chat request failed');
     } finally {
       clearTimeout(timer);
     }
 
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      logger.warn({ requestId: requestId || null, status: res.status, body: body.slice(0, 200) }, 'qwen-chat: non-2xx');
-      throw new Error(`qwen-chat ${res.status}: ${body.slice(0, 200)}`);
-    }
-    const oai = await res.json();
     const telemetry = {
       timestamp: new Date().toISOString(),
       requestId: requestId || null,

@@ -1,5 +1,76 @@
 // Tool definitions for Claude tool_use
 export const TOOL_DEFINITIONS = [
+  {
+    name: 'spire_presence',
+    description: "Who is inside THE SPIRE right now — the Legal Quants' 3D venue at spire.lquorum.blog (floors: lobby, chambers, council, auditorium, garden, arcade, library, oracle). Returns live people and agents by floor from the venue itself. Use for 'anyone in the spire', 'who's in the venue', 'is anyone online in the spire'. The Spire is NOT one of the steads games — Moorstead/Saltstead/Marsstead questions use steads_status instead.",
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'spire_feedback',
+    description: "File a Spire bug report or suggestion onto the venue's Boardroom wall for James. Use whenever someone reports a Spire problem or idea (especially in the Spire Testers group). from = the reporter's name, text = their report, verbatim or lightly tidied.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        from: { type: 'string', description: "The reporter's name." },
+        text: { type: 'string', description: 'The bug report or suggestion.' },
+      },
+      required: ['text'],
+    },
+  },
+  {
+    name: 'spire_health',
+    description: "Quick live health check of the Spire venue: is it serving, what version, and is the voice signal endpoint up. Use for 'is the spire up', 'is the spire down', 'spire broken?'.",
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'steads_status',
+    description: "Status across all three of James's OWN games (Moorstead, Saltstead, Marsstead): who is online now, today's real visitor/player counts, and whether VESPER (Marsstead's AI) is up. Use for 'how are the steads', 'anyone playing', 'steads status'. Owner-only.",
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'steads_mint',
+    description: "Mint an invite code for one of James's games and return it to hand out. game is 'moorstead', 'saltstead' or 'marsstead'. Set warden:true for a warden code (saltstead/marsstead). For moorstead, optionally set room (moor/dale/crag/tarn/bairns). Owner-only.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        game: { type: 'string', enum: ['moorstead', 'saltstead', 'marsstead'], description: 'Which game.' },
+        warden: { type: 'boolean', description: 'Mint a warden code (saltstead/marsstead).' },
+        room: { type: 'string', description: 'World-room (moorstead only).' },
+      },
+      required: ['game'],
+    },
+  },
+  {
+    name: 'steads_revoke',
+    description: "Stage revoking an invite code for a game - does NOT execute, returns a confirm_id. game is moorstead/saltstead/marsstead; code is the invite code. Owner-only, confirm-gated.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        game: { type: 'string', enum: ['moorstead', 'saltstead', 'marsstead'] },
+        code: { type: 'string', description: 'The invite code to revoke.' },
+      },
+      required: ['game', 'code'],
+    },
+  },
+  {
+    name: 'steads_revoke_confirm',
+    description: 'Confirm and execute a previously staged code revocation. Requires the confirm_id from steads_revoke. Single-use. Owner-only.',
+    input_schema: {
+      type: 'object',
+      properties: { confirm_id: { type: 'string', description: 'The confirm_id from steads_revoke.' } },
+      required: ['confirm_id'],
+    },
+  },
+  {
+    name: 'steads_mute',
+    description: "Mute or unmute Clint's live game notifications (visits, plays, bugs). on:true mutes, on:false unmutes. Resets to unmuted on restart. Owner-only.",
+    input_schema: {
+      type: 'object',
+      properties: { on: { type: 'boolean', description: 'true to mute, false to unmute.' } },
+      required: [],
+    },
+  },
+
   // === GOOGLE CALENDAR ===
   {
     name: 'calendar_list_events',
@@ -584,7 +655,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'project_read',
-    description: 'Read a project\'s full details or a specific section. Use to recall project architecture, pitch points, next steps, etc. Available projects include atlas, clint-agi, and sovren.',
+    description: 'Read a project\'s full details or a specific section. Use to recall project architecture, pitch points, next steps, etc. Available projects include atlas, clint-agi, sovren, and spire (the complete reference for the Spire venue: floors, voice, agents, controls).',
     input_schema: {
       type: 'object',
       properties: {

@@ -25,6 +25,7 @@ import { getLiveSystemSnapshot } from './system-knowledge.js';
 import { webSearch } from './tools/search.js';
 import { getGroupConfig } from './group-registry.js';
 import logger from './logger.js';
+import { permitsPrivateContext, currentConversation } from './conversation-context.js';
 
 /**
  * Derive a project id for classifier bias + tool filtering.
@@ -109,7 +110,7 @@ export async function gatherIntelligence(context, hasImage, isGroup, options = {
   // per message when identity memories haven't changed.
   const [route, identityMems] = await Promise.all([
     classifyMessage(context, hasImage, isGroup, groupProject),
-    config.evoMemoryEnabled ? getCachedIdentityMemories() : [],
+    config.evoMemoryEnabled && permitsPrivateContext() ? getCachedIdentityMemories() : [],
   ]);
 
   if (options.secretaryMode) {
@@ -125,7 +126,7 @@ export async function gatherIntelligence(context, hasImage, isGroup, options = {
   const streams = {};
 
   // LQuorum — synchronous, near-instant, always worth doing
-  warmFromQuery(context);
+  if (permitsPrivateContext()) warmFromQuery(context);
 
   // Relevant memories — always fetched when in a project-bound group so
   // that group-specific docs + prior-conversation insights surface on
@@ -165,7 +166,7 @@ export async function gatherIntelligence(context, hasImage, isGroup, options = {
   }
 
   // System snapshot — only for SYSTEM queries
-  if (category === CATEGORY.SYSTEM) {
+  if (category === CATEGORY.SYSTEM && permitsPrivateContext()) {
     streams.system = getLiveSystemSnapshot().catch(err => {
       logger.warn({ err: err.message }, 'cortex: system snapshot failed');
       return '';
@@ -173,7 +174,7 @@ export async function gatherIntelligence(context, hasImage, isGroup, options = {
   }
 
   // Speculative web prefetch — if heuristic or category suggests it
-  if (!options.disableWebPrefetch && shouldPrefetchWeb(context, category)) {
+  if (currentConversation()?.transport !== 'slack' && !options.disableWebPrefetch && shouldPrefetchWeb(context, category)) {
     streams.webPrefetch = speculativeWebSearch(context).catch(() => null);
   }
 
@@ -231,7 +232,7 @@ export async function gatherIntelligence(context, hasImage, isGroup, options = {
   }
 
   // LQuorum working knowledge
-  const lquorumContext = getWorkingKnowledge();
+  const lquorumContext = permitsPrivateContext() ? getWorkingKnowledge() : '';
   if (lquorumContext) {
     const budget = Math.min(SECTION_BUDGETS.lquorum, TOTAL_BUDGET - usedBudget);
     const capped = capSection(lquorumContext, budget);
@@ -335,6 +336,7 @@ async function speculativeWebSearch(context) {
  * Check the web prefetch cache for a query similar to what the LLM requested.
  */
 export function getWebPrefetch(query) {
+  if (currentConversation()) return null; // Legacy fuzzy cache has no audience provenance.
   for (const [key, entry] of _webCache.entries()) {
     if (Date.now() - entry.ts > WEB_CACHE_TTL) {
       _webCache.delete(key);

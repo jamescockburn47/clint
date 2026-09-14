@@ -17,15 +17,20 @@ import { trackTokens, checkDailyLimit, incrementDailyCalls, getDailyCalls, recor
 import { shouldCritique, runCritique } from './quality-gate.js';
 import { createRequestId } from './request-id.js';
 import logger from './logger.js';
+import { currentConversation, isGroupConversation } from './conversation-context.js';
+import { OWNER_ONLY_TOOLS } from './conversation-tools.js';
+import { scopedResponse } from './conversation-response.js';
 
 export { getUsageStats, flushUsage };
 
 const CLAUDE_REQUEST_PATTERNS = /\b(?:ask claude|use claude|use opus|ask opus|claude only|opus only)\b/i;
-const OWNER_ONLY_TOOLS = new Set(['gmail_search', 'gmail_read', 'gmail_draft', 'gmail_confirm_send', 'soul_propose', 'soul_confirm', 'soul_learn', 'soul_forget', 'calendar_create_event', 'calendar_update_event', 'evolution_task', 'moorstead_status', 'moorstead_broadcast', 'moorstead_kick', 'moorstead_bairns_status', 'moorstead_bairns_set', 'moorstead_ops', 'moorstead_ops_confirm', 'moorstead_code', 'moorstead_code_confirm']);
 const GROUP_MODE_TOOLS = TOOL_DEFINITIONS.filter(t => ['memory_search', 'web_search', 'web_fetch'].includes(t.name));
 const MAX_TOOL_RESULT = 1500;
+// The only tools a public-venue speaker (the Spire floor) may reach: public-web
+// lookups. Everything else — memory_search, soul_read, todos, projects, sovren —
+// can surface owner-private material, so it is withheld from venue interactions.
+const SPIRE_SAFE_TOOLS = new Set(['web_search', 'web_fetch']);
 const MAX_TOOL_LOOPS = 5;
-const QWEN_TOOL_SELECTION_MAX_TOKENS = 512;
 
 export function selectToolsForProvider({ provider, category, allTools, categoryTools }) {
   // Category-based filtering benefits every provider, not just Qwen.
@@ -44,11 +49,9 @@ export function selectToolsForProvider({ provider, category, allTools, categoryT
   return categoryTools;
 }
 
-export function selectMaxTokensForToolLoop({ provider, isFirstRequest, hasTools, defaultMaxTokens }) {
-  const shouldCapQwenToolSelection = provider === 'qwen' && isFirstRequest && hasTools;
-  if (shouldCapQwenToolSelection) {
-    return Math.min(defaultMaxTokens, QWEN_TOOL_SELECTION_MAX_TOKENS);
-  }
+export function selectMaxTokensForToolLoop({ defaultMaxTokens }) {
+  // With tool_choice:auto this request may produce the complete answer. A 512-token
+  // tool-selection cap truncated real Qwen replies in the shared-core EVO probe.
   return defaultMaxTokens;
 }
 
@@ -76,6 +79,7 @@ class LLMService {
    *      last-resort dead-man's-switch; not reached in normal operation.
    */
   constructor(opts) {
+    this._gatherIntelligence = opts.gatherIntelligence || gatherIntelligence;
     this._qwenClient = opts.qwenChatUrl
       ? createQwenChatClient({ baseUrl: opts.qwenChatUrl, defaultModel: opts.qwenChatModel })
       : null;
@@ -123,6 +127,7 @@ class LLMService {
    * exists as a kept-around dead-man's-switch.
    */
   _cloudFallback() {
+    if (currentConversation()?.localOnly) return null;
     if (this._minimaxClient) return {
       client: this._minimaxClient,
       model: config.minimaxModel,
@@ -155,6 +160,12 @@ class LLMService {
   }
 
   _selectClient(userWantsClaude, hasImage = false) {
+    if (currentConversation()?.localOnly) {
+      if (hasImage || !this._qwenClient) throw new Error('local_model_unavailable_for_request');
+      return { activeClient: this._qwenClient, activeModel: this._qwenModel,
+        breaker: this._qwenBreaker, droppedClaude: userWantsClaude,
+        providerHint: 'qwen', reason: 'conversation_local_only' };
+    }
     // Image path: dense Qwen3.6-27B has no vision head, always route
     // images to MiniMax (which has vision via its Anthropic-compatible
     // endpoint). Falls back to Claude only if MiniMax is unavailable.
@@ -246,13 +257,12 @@ class LLMService {
   }
 
   /** Run the tool use loop, returning final response */
-  async _toolLoop(activeClient, activeModel, breaker, system, messages, cachedTools, isGroup, mode, senderJid, chatJid, requestId) {
+  async _toolLoop(activeClient, activeModel, breaker, system, messages, cachedTools, isGroup, mode, senderJid, chatJid, requestId, category) {
     let loopClient = activeClient;
     let loopModel = activeModel;
     let loopBreaker = breaker;
     let provider = this._providerNameFor(loopClient);
     let usedFallback = false;
-
     const hasTools = cachedTools.length > 0;
     const callOpts = (isFirstRequest = false) => {
       const defaultMaxTokens = (isGroup && mode === 'random')
@@ -267,6 +277,7 @@ class LLMService {
           defaultMaxTokens,
         }),
         requestId,
+        ...(provider === 'qwen' && ['conversational', 'recall', 'email', 'system'].includes(category) ? { enableThinking: false } : {}),
         system,
         messages,
         ...(hasTools ? { tools: cachedTools } : {}),
@@ -282,7 +293,7 @@ class LLMService {
     //   - When we started on Qwen and it failed, try MiniMax next.
     //   - When we were on MiniMax (directly or via the Qwen fallback) and it failed, try Claude.
     //   - When the active client is already Claude, no further fallback.
-    if (!response && loopClient === this._qwenClient && this._minimaxClient) {
+    if (!response && !currentConversation()?.localOnly && loopClient === this._qwenClient && this._minimaxClient) {
       logger.warn('Qwen local unreachable, falling back to MiniMax');
       loopClient = this._minimaxClient;
       loopModel = config.minimaxModel;
@@ -294,7 +305,7 @@ class LLMService {
         null,
       );
     }
-    if (!response && loopClient === this._minimaxClient && this._claudeClient) {
+    if (!response && !currentConversation()?.localOnly && loopClient === this._minimaxClient && this._claudeClient) {
       logger.warn('MiniMax unavailable, falling back to Claude');
       loopClient = this._claudeClient;
       loopModel = this._claudeModel;
@@ -319,10 +330,14 @@ class LLMService {
       messages.push({ role: 'assistant', content: response.content });
       const toolResults = [];
       for (const toolUse of toolUseBlocks) {
-        logger.info({ requestId, tool: toolUse.name, input: toolUse.input }, 'tool call');
-        this._lastToolsCalled.push(toolUse.name);
-        let result = await executeTool(toolUse.name, toolUse.input, senderJid, chatJid);
-        logger.info({ requestId, tool: toolUse.name, chars: result.length }, 'tool result');
+        const offered = cachedTools.some(t => t.name === toolUse.name);
+        const toolName = offered ? toolUse.name : 'unrecognized_tool';
+        logger.info({ requestId, tool: toolName }, 'tool call');
+        this._lastToolsCalled.push(toolName);
+        let result = offered
+          ? await executeTool(toolUse.name, toolUse.input, senderJid, chatJid)
+          : 'Tool denied: it was not offered for this request.';
+        logger.info({ requestId, tool: toolName, chars: result.length }, 'tool result');
         if (result.length > MAX_TOOL_RESULT) result = result.slice(0, MAX_TOOL_RESULT) + '\n[...truncated]';
         toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: result });
       }
@@ -342,6 +357,11 @@ class LLMService {
 
   /** Main entry point — handles routing, cortex, tools, quality gate */
   async getResponse(context, mode, senderJid, imageData = null, chatJid = null, options = {}) {
+    return scopedResponse({ senderJid, chatJid, options },
+      () => this._getResponse(context, mode, senderJid, imageData, chatJid, options));
+  }
+
+  async _getResponse(context, mode, senderJid, imageData, chatJid, options) {
     this._lastToolsCalled = [];
     const requestId = options.requestId || createRequestId({ source: 'llm' });
 
@@ -350,11 +370,11 @@ class LLMService {
       return { text: null, meta: null };
     }
 
-    const ownerJids = new Set();
-    if (config.ownerJid) ownerJids.add(config.ownerJid);
-    if (config.ownerLid) ownerJids.add(config.ownerLid);
-    const isOwner = !senderJid || ownerJids.size === 0 || ownerJids.has(senderJid);
-    const tools = this._getAvailableTools(isOwner, chatJid);
+    const isOwner = currentConversation().isOwner;
+    let tools = this._getAvailableTools(isOwner, chatJid);
+    // spireSafe (venue interactions): trim to the public-web allowlist so a
+    // passer-by cannot drive private-store reads (memory/soul) via prompt injection.
+    if (options.spireSafe) tools = tools.filter((t) => SPIRE_SAFE_TOOLS.has(t.name));
 
     // "Merlin" address → Moorstead-only warden mode (owner only). When James
     // opens a message with "Merlin", scope this reply strictly to the game:
@@ -364,9 +384,9 @@ class LLMService {
     const merlinMode = isOwner && _firstWord === 'merlin';
 
     const routeStart = Date.now();
-    const isGroup = chatJid && chatJid.endsWith('@g.us');
+    const isGroup = isGroupConversation(chatJid);
 
-    const { route, memoryFragment, timing: cortexTiming } = await gatherIntelligence(
+    const { route, memoryFragment, timing: cortexTiming } = await this._gatherIntelligence(
       context, !!imageData, isGroup, { secretaryMode: options.secretaryMode, chatJid },
     );
     const projectScopeFragment = isGroup ? buildProjectScopePrompt(chatJid, context) : '';
@@ -392,12 +412,15 @@ class LLMService {
         if (planResult) {
           logReasoningTrace({
             chatId: chatJid, sender: senderJid, engagement: null,
-            routing: { category, layer: classifySource, needsPlan: true, planReason: route.planReason, forceClaude, writeIntent: !!routeReason?.includes('write'), confidence: route.confidence, timeMs: cortexTiming.totalMs, classifyMs: cortexTiming.phase1Ms },
+            routing: { category, layer: classifySource, needsPlan: true, planReason: null, forceClaude, writeIntent: !!routeReason?.includes('write'), confidence: route.confidence, timeMs: cortexTiming.totalMs, classifyMs: cortexTiming.phase1Ms },
             model: { selected: 'evo-30b', reason: 'needsPlan', qualityGate: false },
-            plan: planResult.plan, toolsCalled: planResult.plan.steps.map(s => s.tool), totalTimeMs: Date.now() - routeStart,
+            plan: null, toolsCalled: planResult.plan.steps.map(s => s.tool), totalTimeMs: Date.now() - routeStart,
           });
           return {
-            text: planResult.response,
+            text: shouldCritique(category, planResult.response, false)
+              ? await runCritique(planResult.response, category, trackTokens, currentConversation()?.localOnly
+                ? { client: this._qwenClient, defaultModel: this._qwenModel, provider: 'qwen' } : undefined)
+              : planResult.response,
             meta: {
               category,
               classifySource,
@@ -468,7 +491,7 @@ class LLMService {
       userContent.push({ type: 'text', text: context });
       const messages = [{ role: 'user', content: userContent }];
 
-      const toolLoopResult = await this._toolLoop(activeClient, activeModel, breaker, system, messages, cachedTools, isGroup, mode, senderJid, chatJid, requestId);
+      const toolLoopResult = await this._toolLoop(activeClient, activeModel, breaker, system, messages, cachedTools, isGroup, mode, senderJid, chatJid, requestId, category);
 
       if (!toolLoopResult) {
         return {
@@ -486,6 +509,7 @@ class LLMService {
         };
       }
       const { response, provider, modelName, usedFallback } = toolLoopResult;
+      if (response.stop_reason !== 'end_turn') throw new Error('incomplete_model_response');
 
       recordCallInUsage();
       const cacheInfo = response.usage?.cache_read_input_tokens ? ` (cache: ${response.usage.cache_read_input_tokens})` : '';
@@ -534,7 +558,8 @@ class LLMService {
 
       const critiqueApplied = shouldCritique(category, text, userWantsClaude);
       if (critiqueApplied) {
-        text = await runCritique(text, category, trackTokens);
+        text = await runCritique(text, category, trackTokens, currentConversation()?.localOnly
+          ? { client: this._qwenClient, defaultModel: this._qwenModel, provider: 'qwen' } : undefined);
       }
 
       // Provider-reason derives from how we ended up on `provider` given
@@ -567,12 +592,12 @@ class LLMService {
         fallback: usedFallback,
         reason: routeReason || classifySource,
         toolsCalled: this._lastToolsCalled,
-        text: context,
+        text: null,
       });
       logReasoningTrace({
         requestId,
         chatId: chatJid, sender: senderJid, engagement: null,
-        routing: { category, layer: classifySource, needsPlan: route.needsPlan || false, planReason: route.planReason || null, forceClaude, writeIntent: !!routeReason?.includes('write'), confidence: route.confidence || null, timeMs: cortexTiming.totalMs, classifyMs: cortexTiming.phase1Ms },
+        routing: { category, layer: classifySource, needsPlan: route.needsPlan || false, planReason: null, forceClaude, writeIntent: !!routeReason?.includes('write'), confidence: route.confidence || null, timeMs: cortexTiming.totalMs, classifyMs: cortexTiming.phase1Ms },
         model: { selected: provider, modelName, reason: providerReason, qualityGate: critiqueApplied, routeForceClaude: forceClaude },
         plan: null, toolsCalled: this._lastToolsCalled, totalTimeMs: Date.now() - routeStart,
       });
@@ -600,20 +625,26 @@ class LLMService {
         logger.error({ requestId, status }, 'API overloaded');
         return { text: 'Claude API is overloaded. Try again shortly.', meta: null };
       }
-      logger.error({ requestId, err: err.message, status }, 'API error');
+      logger.error({ requestId, status }, 'API error');
       return { text: null, meta: null };
     }
   }
 
   /** Group analysis response — simpler path with limited tools */
   async getGroupModeResponse(systemPrompt, userMessage, useOpus = false, senderJid = null, chatJid = null) {
+    const result = await scopedResponse({ senderJid, chatJid, options: {} }, async () => ({
+      text: await this._getGroupModeResponse(systemPrompt, userMessage, useOpus, senderJid, chatJid) }));
+    return result?.text ?? null;
+  }
+
+  async _getGroupModeResponse(systemPrompt, userMessage, useOpus, senderJid, chatJid) {
     const activeClient = useOpus ? this._claudeClient : this._defaultClient;
     const activeModel = useOpus ? this._claudeModel : this._defaultModel;
     const breaker = useOpus ? this._claudeBreaker : (this._minimaxClient ? this._minimaxBreaker : this._claudeBreaker);
 
     const system = [{ type: 'text', text: systemPrompt }];
     const messages = [{ role: 'user', content: userMessage }];
-    const tools = useOpus ? GROUP_MODE_TOOLS : [];
+    const tools = useOpus ? filterToolsForChat(chatJid, GROUP_MODE_TOOLS) : [];
 
     try {
       let response = await breaker.call(
@@ -631,8 +662,10 @@ class LLMService {
         messages.push({ role: 'assistant', content: response.content });
         const toolResults = [];
         for (const toolUse of toolUseBlocks) {
-          logger.info({ tool: toolUse.name, mode: 'group_mode' }, 'group-mode tool call');
-          let result = await executeTool(toolUse.name, toolUse.input, senderJid, chatJid);
+          logger.info({ tool: tools.some(t => t.name === toolUse.name) ? toolUse.name : 'unrecognized_tool', mode: 'group_mode' }, 'group-mode tool call');
+          let result = tools.some(t => t.name === toolUse.name)
+            ? await executeTool(toolUse.name, toolUse.input, senderJid, chatJid)
+            : 'Tool denied: it was not offered for this request.';
           if (result.length > MAX_TOOL_RESULT) result = result.slice(0, MAX_TOOL_RESULT) + '\n[...truncated]';
           toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: result });
         }
@@ -666,7 +699,7 @@ const llmService = new LLMService({
   // for every non-image chat. Images route to MiniMax because the dense
   // 27B has no vision head.
   qwenChatUrl: config.evoLlmUrl,
-  qwenChatModel: config.evoMainModelLabel || 'qwen3.6-27b',
+  qwenChatModel: config.evoChatModel,
 });
 
 // --- Facade exports ---

@@ -33,7 +33,7 @@ function renderMemorySection(report: MorningReport): string {
     return lines.join('\n');
   }
   lines.push(
-    `  Extracted ${memoryStored} candidate memories from yesterday's conversations.`,
+    `  Persisted ${memoryStored} candidate statements from yesterday's conversations.`,
   );
   if (memoryRejected > 0) {
     lines.push(
@@ -41,7 +41,7 @@ function renderMemorySection(report: MorningReport): string {
     );
   }
   lines.push(
-    '  Saved to the shadow file for review, not yet promoted to EVO memory.',
+    '  Source attribution is preserved; these statements are not independently verified facts. See storage events for remote write failures.',
   );
   return lines.join('\n');
 }
@@ -149,6 +149,14 @@ function renderResearchLines(report: MorningReport): string[] {
 }
 
 function renderSelfImprovementLine(report: MorningReport): string {
+  const packet = [...report.events].reverse().find(event => event.stage === 'improve' && event.phase === 'proposal');
+  if (packet) {
+    const count = (prefix: string) => packet.outputs.find(output => output.startsWith(prefix + ':'))?.split(':')[1] ?? '0';
+    const adaptation = report.events.some(event => event.phase === 'auto-apply-presentation' && event.verdict === 'ok');
+    return `Learning: ${count('recollections')} recollections, ${count('hypotheses')} unverified hypotheses and ${count('improvements')} observed-failure tasks. ` +
+      `Review packet ${packet.verdict === 'ok' ? 'saved' : 'saved with failures'}. ` +
+      (adaptation ? 'Owner report-layout preference applied automatically. ' : '') + 'Executable source was not deployed.';
+  }
   const deploy = [...report.events]
     .reverse()
     .find((e) => e.stage === 'improve' && e.phase === 'deploy');

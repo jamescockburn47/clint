@@ -1,3 +1,7 @@
+> Historical document. September 2026 behavior and operational policy are defined in
+> [README](README.md), [AGENTS.md](AGENTS.md) and [the overhaul report](docs/clint-overhaul-2026-09-13.md).
+> Earlier AGI, model, deployment and autonomous source-change claims are not current guarantees.
+
 # Overnight Coding System
 
 The overnight coder is a self-improvement loop that runs the local 30B coding model against the Clawdbot codebase every night. It finds router misclassifications, generates unit tests, and audits code quality — all without human intervention or cloud API calls.

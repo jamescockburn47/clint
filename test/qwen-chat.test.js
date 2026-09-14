@@ -199,6 +199,9 @@ describe('createQwenChatClient — end-to-end via mocked fetch', () => {
     assert.equal(payload.messages[0].role, 'system');
     assert.equal(payload.messages[1].role, 'user');
     assert.equal(payload.cache_prompt, true);
+    assert.equal(payload.chat_template_kwargs, undefined);
+    await client.messages.create({ messages: [{ role: 'user', content: 'Hi' }], enableThinking: false });
+    assert.deepEqual(mock.getSeenPayload().chat_template_kwargs, { enable_thinking: false });
   });
 
   it('includes translated tools when provided', async () => {

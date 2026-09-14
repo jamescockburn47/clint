@@ -4,6 +4,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import logger from './logger.js';
 import { runtimePath } from './overnight/paths.js';
+import { currentPolicy } from './conversation-context.js';
 
 // Resolves to data/runtime/group-registry.json, seeded from
 // data/runtime-defaults/group-registry.json on fresh clones.
@@ -82,6 +83,8 @@ loadRegistry();
  * Get the config for a specific group. Returns null if not registered.
  */
 export function getGroupConfig(chatJid) {
+  const scoped = currentPolicy(chatJid);
+  if (scoped) return scoped;
   ensureLoaded();
   if (!chatJid || !registry.groups) return null;
   return registry.groups[chatJid] || null;

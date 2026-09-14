@@ -10,12 +10,15 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 const execFileP = promisify(execFile);
 
 export interface WithWorktreeOptions {
   repoRoot: string;
   baseRef: string;
+  /** Preserve candidate branches and files for review, including interrupted work. */
+  retain?: boolean;
 }
 
 export interface WorktreeHandle {
@@ -36,8 +39,9 @@ export async function withWorktree<T>(
     .replace(/[:.]/g, '-')
     .replace('T', '-')
     .slice(0, 19);
-  const wtPath = join(opts.repoRoot, '.worktrees', `forge-${timestamp}-${process.pid}`);
-  const branch = `forge/wt-${timestamp}-${process.pid}`;
+  const suffix = `${timestamp}-${randomUUID()}`;
+  const wtPath = join(opts.repoRoot, '.worktrees', `forge-${suffix}`);
+  const branch = `codex/forge-${suffix}`;
 
   await execFileP('git', ['worktree', 'add', '-b', branch, wtPath, opts.baseRef], {
     cwd: opts.repoRoot,
@@ -46,7 +50,7 @@ export async function withWorktree<T>(
   try {
     return await fn({ path: wtPath, branch });
   } finally {
-    // Best-effort cleanup. We log but don't rethrow so the original fn error (if any) wins.
+    if (!opts.retain) {
     try {
       await execFileP('git', ['worktree', 'remove', '--force', wtPath], { cwd: opts.repoRoot });
     } catch (err) {
@@ -60,6 +64,7 @@ export async function withWorktree<T>(
     } catch {
       // intentional: branch may already be gone if worktree remove succeeded
     }
+    }
   }
 }
 
@@ -70,31 +75,8 @@ export async function withWorktree<T>(
  * Returns the number of worktrees removed.
  */
 export async function janitorSweep(opts: { repoRoot: string }): Promise<number> {
-  const dir = join(opts.repoRoot, '.worktrees');
-  if (!existsSync(dir)) return 0;
-
-  const entries = readdirSync(dir, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => join(dir, e.name));
-
-  let removed = 0;
-  for (const wt of entries) {
-    try {
-      await execFileP('git', ['worktree', 'remove', '--force', wt], { cwd: opts.repoRoot });
-      removed += 1;
-    } catch (err) {
-      console.error(
-        `janitorSweep: failed to remove ${wt}: ${(err as Error).message}`,
-      );
-    }
-  }
-
-  // Tell git to drop stale administrative records.
-  try {
-    await execFileP('git', ['worktree', 'prune'], { cwd: opts.repoRoot });
-  } catch {
-    // intentional: prune is housekeeping only
-  }
-
-  return removed;
+  // A directory name cannot establish ownership, inactivity or disposability.
+  // Candidate cleanup is an explicit reviewed action; never sweep arbitrary work.
+  void opts;
+  return 0;
 }

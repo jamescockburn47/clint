@@ -143,7 +143,7 @@ class RouterService {
     try {
       const raw = await this._evoClassify(text, CLASSIFY_PROMPT);
       if (raw && VALID_CATEGORIES.has(raw)) { cb.failures = 0; logger.info({ category: raw, source: 'llm_classifier' }, 'message classified'); return raw; }
-      logger.warn({ raw, text: text.slice(0, 80) }, 'LLM classifier returned invalid category');
+      logger.warn('LLM classifier returned invalid category');
       cb.failures++; cb.lastFailure = Date.now();
       if (cb.failures >= cb.THRESHOLD) cb.openUntil = Date.now() + cb.COOLDOWN_MS;
       return null;

@@ -1,5 +1,4 @@
 /// <reference types="node" />
-// @ts-expect-error - evo-llm.js has no declarations yet
 import { evoSimpleChat } from '../evo-llm.js';
 import type {
   ContributionKind,
@@ -244,4 +243,3 @@ function stringArrayOrEmpty(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((v): v is string => typeof v === 'string');
 }
-

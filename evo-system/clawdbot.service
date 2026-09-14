@@ -8,11 +8,7 @@ Wants=clawdbot-memory.service
 Type=simple
 User=james
 WorkingDirectory=/home/james/clawdbot
-# Reclaim :3000 from any non-systemd leftover process (e.g. an orphan tsx
-# started via `nohup node ... &` over SSH that survived its session). The
-# leading `-` makes each step non-fatal if nothing needs killing.
-ExecStartPre=-/usr/bin/fuser -k -TERM 3000/tcp
-ExecStartPre=-/bin/sleep 2
+# A port conflict must fail visibly; never kill an unrelated port owner.
 ExecStart=/home/james/clawdbot/node_modules/.bin/tsx --env-file=.env src/index.js
 Restart=on-failure
 RestartSec=10

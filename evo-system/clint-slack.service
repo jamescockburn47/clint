@@ -1,0 +1,39 @@
+[Unit]
+Description=Clint shared-core Slack adapter
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+DynamicUser=yes
+WorkingDirectory=/opt/clint-slack/current
+EnvironmentFile=/etc/clint-slack/runtime.env
+Environment=SLACK_DATA_DIR=/var/lib/clint-slack
+Environment=LOG_LEVEL=warn
+StateDirectory=clint-slack
+StateDirectoryMode=0700
+UMask=0077
+ExecStart=/usr/bin/flock -n /var/lib/clint-slack/instance.lock /usr/bin/node --import tsx /opt/clint-slack/current/src/slack/main.js
+Restart=on-failure
+RestartSec=15
+TimeoutStopSec=110
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+BindPaths=/var/lib/clint-slack/data:/opt/clint-slack/current/data
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+LockPersonality=yes
+MemoryMax=512M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

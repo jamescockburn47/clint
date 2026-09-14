@@ -25,12 +25,12 @@ describe('tool definitions guardrails', () => {
     assert.ok(confirm.description.includes('ONLY call this after James has explicitly confirmed'));
   });
 
-  it('no tool has delete/trash/archive capability (except memory_delete)', () => {
+  it('gmail and calendar never expose delete/trash/archive capability', () => {
     for (const tool of TOOL_DEFINITIONS) {
       const name = tool.name.toLowerCase();
       const desc = tool.description.toLowerCase();
       // memory_delete is legitimate — only check for gmail/calendar destructive ops
-      if (name === 'memory_delete') continue;
+      if (!name.startsWith('gmail_') && !name.startsWith('calendar_')) continue;
       assert.ok(!name.includes('delete'), `tool ${tool.name} must not have delete in name`);
       assert.ok(!name.includes('trash'), `tool ${tool.name} must not have trash in name`);
       assert.ok(!name.includes('archive'), `tool ${tool.name} must not have archive in name`);

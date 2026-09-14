@@ -35,6 +35,8 @@ export interface RunOvernightResearchOptions {
   fetchPage?: FetchFn;
   chat?: ChatFn;
   chooseTopics?: ChooseTopicsFn;
+  /** Production queries come from the explicit public-topic allowlist, never private conversation inference. */
+  approvedTopics?: string[];
 }
 
 let lastResearchDate: string | null = null;
@@ -269,17 +271,17 @@ export async function runOvernightResearch(
   opts: RunOvernightResearchOptions,
 ): Promise<OvernightResearchReport> {
   const overnightDir = opts.overnightDir ?? join('data', 'overnight');
-  const transcript = await loadTranscript(opts.date, opts.logDir);
+  const transcript = opts.approvedTopics ? '' : await loadTranscript(opts.date, opts.logDir);
   const report: OvernightResearchReport = { date: opts.date, source: 'searxng', topics: [] };
 
-  if (!transcript.trim()) {
+  if (!transcript.trim() && !opts.approvedTopics?.length) {
     await appendEvent({
       stage: 'operations',
       phase: 'overnight-research',
       inputs: [],
       outputs: [],
       verdict: 'skipped',
-      reason: 'no conversation text available for overnight research',
+      reason: opts.approvedTopics ? 'no public research topics configured' : 'no conversation text available for overnight research',
       evidence_refs: [],
       rollback_ref: null,
       budget: { opus_sessions: 0, tokens: 0 },
@@ -288,9 +290,9 @@ export async function runOvernightResearch(
   }
 
   const chat = opts.chat ?? defaultChat;
-  const topics = opts.chooseTopics
+  const topics = opts.approvedTopics ?? (opts.chooseTopics
     ? await opts.chooseTopics(transcript)
-    : await chooseTopics(transcript, chat);
+    : await chooseTopics(transcript, chat));
   const selectedTopics = topics.slice(0, MAX_TOPICS);
   const search = opts.search ?? defaultSearch;
   const fetchPage = opts.fetchPage ?? defaultFetch;
@@ -335,7 +337,8 @@ export async function checkOvernightResearch(
   if (hours !== RESEARCH_HOUR || minutes !== RESEARCH_MINUTE) return;
   lastResearchDate = todayStr;
   try {
-    await runOvernightResearch({ date: todayStr });
+    const { default: config } = await import('../config.js');
+    await runOvernightResearch({ date: todayStr, approvedTopics: config.overnightResearchTopics });
   } catch (err) {
     await logResearchFailure(err as Error);
     throw err;

@@ -36,7 +36,7 @@ describe('overnight/consolidate.runConsolidateStage', () => {
       text,
       category: 'project',
       confidence: 0.85,
-      sources: [{ hash: 'sha256:abc', excerpt: text.slice(0, 50) }],
+      sources: undefined as unknown as MemoryCandidate['sources'],
     };
   }
 
@@ -76,14 +76,14 @@ describe('overnight/consolidate.runConsolidateStage', () => {
 
   it('runs extract → store → maintenance and writes three consolidate events', async () => {
     writeLog('2026-04-09-1.jsonl', [
-      { sender: 'James', text: 'The Atlas case goes to hearing on Thursday this week' },
+      { sender: 'James', isBot: false, text: 'The Atlas case goes to hearing on Thursday this week' },
       { sender: 'Clint', text: 'Noted — I will prep the briefing for Thursday.', isBot: true },
     ]);
 
     const storeClient = makeStoreClient();
     const stage = makeConsolidateStage({
       logDir,
-      extractClient: makeExtractClient([validCandidate('Atlas hearing Thursday'), unsourcedCandidate('no evidence here')]),
+      extractClient: makeExtractClient([validCandidate('The Atlas case goes to hearing on Thursday this week'), unsourcedCandidate('no evidence here')]),
       storeClient,
       memoryClient: makeMaintenance(),
       topicClient: makeTopicIndex(),
@@ -113,7 +113,7 @@ describe('overnight/consolidate.runConsolidateStage', () => {
 
     const storeEvent = events.find((e) => e.phase === 'store');
     assert.ok(storeEvent);
-    assert.match(storeEvent!.reason, /stored=1.*rejected=1/);
+    assert.match(storeEvent!.reason, /stored=1.*rejected=0/);
   });
 
   it('records a failed extract event when the log dir does not exist', async () => {
@@ -145,13 +145,13 @@ describe('overnight/consolidate.runConsolidateStage', () => {
     // Extract should report 0 files processed (not a failure — an empty day).
     const extractEvent = events.find((e) => e.phase === 'extract');
     assert.ok(extractEvent);
-    assert.equal(extractEvent!.verdict, 'ok');
+    assert.equal(extractEvent!.verdict, 'failed');
     assert.match(extractEvent!.reason, /files=0/);
   });
 
-  it('writes a rejected-<date>.jsonl for unsourced candidates', async () => {
+  it('rejects unsourced candidates before they reach storage', async () => {
     writeLog('2026-04-09-1.jsonl', [
-      { sender: 'James', text: 'A valid conversation with enough content to be processed' },
+      { sender: 'James', isBot: false, text: 'A valid conversation with enough content to be processed' },
       { sender: 'Clint', text: 'Responding to the valid conversation so it passes the length check', isBot: true },
     ]);
 
@@ -179,10 +179,8 @@ describe('overnight/consolidate.runConsolidateStage', () => {
     runner.register('consolidate', stage);
     await runner.run(['consolidate']);
 
-    const { existsSync, readFileSync } = await import('node:fs');
-    const rejectedFile = join(overnightDir, 'rejected-2026-04-10.jsonl');
-    assert.ok(existsSync(rejectedFile));
-    const lines = readFileSync(rejectedFile, 'utf8').trim().split('\n');
-    assert.equal(lines.length, 2);
+    const events = await queryEvents({ date: '2026-04-10', overnightDir, stage: 'consolidate' });
+    assert.equal(events.find(e => e.phase === 'extract')?.verdict, 'failed');
+    assert.match(events.find(e => e.phase === 'extract')!.reason, /rejected=2/);
   });
 });

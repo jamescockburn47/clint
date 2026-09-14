@@ -103,6 +103,13 @@ export async function runDeployStage(opts: DeployOptions): Promise<DeployResult>
   const classifier = opts.classifier ?? classifyTier;
   const diff = parseGitDiffStat(opts.artifacts.gitDiff);
   const tierResult = classifier(diff);
+  if (opts.artifacts.branch && (!opts.replay || ['blocked', 'skipped', 'reject'].includes(opts.replay.verdict))) {
+    await opts.client.openProposal({ candidate: opts.candidate, tier: tierResult.tier,
+      artifacts: opts.artifacts, replay: opts.replay, ciOutput: null,
+      reason: 'Validation blocked: candidate replay is missing, incomplete or rejected. No publication.' });
+    return { verdict: 'rejected', tier: tierResult.tier, branchRef: opts.artifacts.branch,
+      reason: 'candidate replay not established', ciOutput: null };
+  }
 
   if (!opts.artifacts.branch) {
     return {

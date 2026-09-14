@@ -3,6 +3,7 @@
 // No business logic — delegates to message-handler, http-server, and other modules.
 
 import { makeWASocket, useMultiFileAuthState, makeCacheableSignalKeyStore, DisconnectReason, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
+import { backfillHistory, noteMessage, armOnDemandFetch } from './history-backfill.js';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import { execSync } from 'child_process';
@@ -11,6 +12,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 import config from './config.js';
+import { ChannelState } from './channel-state.ts';
 import logger from './logger.js';
 import { initSentry, setUser as setSentryUser } from './sentry.js';
 import { loadBuffers, saveBuffers, pushMessage, flushBufferTimer, rehydrateGroupBuffers } from './buffer.js';
@@ -24,6 +26,7 @@ import { initScheduler } from './scheduler.js';
 import { handleIncomingMessage, handleReaction, simulateTyping } from './message-handler.js';
 import { loadSkills } from './skill-registry.js';
 import { startHttpServer } from './http-server.js';
+import { initSpireChannel, stopSpireChannel } from './spire.js';
 import { cacheSentMessage, getCachedMessage, msgRetryCounterCache } from './message-cache.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -35,6 +38,7 @@ let lastActivityTimestamp = Date.now();
 
 // Shared socket reference for the HTTP API and proactive messages
 let activeSock = null;
+const channel = new ChannelState(startBot, err => logger.error({ error: String(err) }, 'WhatsApp reconnect failed'));
 
 // Scheduler is module-scoped on purpose: every WhatsApp reconnect invokes
 // startBot() again, and a closure-scoped flag would re-init the scheduler
@@ -101,10 +105,17 @@ async function startBot() {
     logger: baileysLogger,
     browser: ['Clint', 'Chrome', '122.0.0'],
     markOnlineOnConnect: false,
-    syncFullHistory: false,
+    syncFullHistory: true,
     printQRInTerminal: false,
     msgRetryCounterCache,
     getMessage: async (key) => getCachedMessage(key.id),
+  });
+
+  // History backfill: capture messages missed while offline (or paged on-demand)
+  // into the same per-day logs the live path uses, so dream -> memory ingests them.
+  sock.ev.on('messaging-history.set', ({ messages }) => {
+    try { backfillHistory(messages || [], { botName: sock.user?.name || 'Clint' }); }
+    catch (err) { logger.error({ err: err.message }, 'messaging-history.set handler failed'); }
   });
 
   let pairingRequested = false;
@@ -132,6 +143,7 @@ async function startBot() {
       const botJid = sock.user?.id;
       const botLid = sock.user?.lid || null;
       activeSock = sock;
+      channel.set('connected');
       globalThis._clawdWhatsAppConnected = true;
       globalThis._clawdBotLid = botLid;
       logger.info({ name: sock.user?.name, jid: botJid, lid: botLid }, 'WhatsApp connected');
@@ -154,9 +166,16 @@ async function startBot() {
         if (type !== 'notify') return;
         for (const msg of messages) {
           lastActivityTimestamp = Date.now();
+          noteMessage(msg);
           handleIncomingMessage(sock, msg, botJid);
         }
       });
+
+      // One-shot: page further back on the LQCore group once, ~25s after connect.
+      if (!globalThis._clawdHistoryOneShot) {
+        globalThis._clawdHistoryOneShot = true;
+        armOnDemandFetch(sock, config.lqcDevGroupJid, { count: 80 });
+      }
 
       // Capture message reactions (thumbs up/down) as quality feedback
       sock.ev.on('messages.reaction', (reactions) => {
@@ -231,11 +250,12 @@ async function startBot() {
       globalThis._clawdWhatsAppConnected = false;
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       if (statusCode === DisconnectReason.loggedOut) {
-        logger.fatal('logged out - delete auth_state and restart');
-        process.exit(1);
+        channel.close(true);
+        logger.error('WhatsApp needs owner re-pairing; HTTP remains available. Authentication state preserved.');
+        return;
       }
       logger.warn({ statusCode }, 'disconnected, reconnecting in 5s...');
-      setTimeout(startBot, 5000);
+      channel.close(false);
     }
   });
 
@@ -248,6 +268,7 @@ let shuttingDown = false;
 async function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
+  channel.set('stopped');
   logger.info({ signal }, 'shutting down...');
 
   try { flushUsage(); } catch { /* intentional: best-effort flush on shutdown */ }
@@ -255,6 +276,7 @@ async function shutdown(signal) {
   try { await flushAudit(); } catch { /* intentional: best-effort flush on shutdown */ }
   try { flushBufferTimer(); await saveBuffers(); } catch { /* intentional: best-effort flush on shutdown */ }
   try { stopWidgetRefresh(); } catch { /* intentional: best-effort cleanup on shutdown */ }
+  try { stopSpireChannel(); } catch { /* intentional: best-effort cleanup on shutdown */ }
 
   logger.info('shutdown complete');
   process.exit(0);
@@ -270,6 +292,14 @@ startHttpServer(config.httpPort, {
   getActiveSock: () => activeSock,
   sendProactiveMessage,
   getLastActivity: () => lastActivityTimestamp,
+  getChannelState: () => channel.status,
 });
 
-startBot();
+if (config.whatsappEnabled) startBot().catch(err => {
+  logger.error({ error: String(err) }, 'WhatsApp startup failed');
+  channel.close(false);
+});
+else channel.set('disabled');
+
+// Preserve the existing opt-in Spire integration.
+initSpireChannel();

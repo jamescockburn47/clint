@@ -90,21 +90,21 @@ Return ONLY the JSON object.`;
         `Response A (sent at the time):\n${originalResponse}\n\n` +
         `Response B (what the bot would say now):\n${newResponse}`;
       const raw = await evoSimpleChat(systemPrompt, userMessage, 200);
-      if (!raw) return { judged: 'neutral', reason: 'grader unavailable' };
+      if (!raw) throw new Error('probe_grader_unavailable');
       try {
         const text = raw.trim();
         const firstBrace = text.indexOf('{');
         const lastBrace = text.lastIndexOf('}');
         if (firstBrace === -1 || lastBrace === -1) {
-          return { judged: 'neutral', reason: 'grader returned non-JSON' };
+          throw new Error('probe_grader_invalid_json');
         }
         const parsed = JSON.parse(text.slice(firstBrace, lastBrace + 1));
-        const judged =
-          parsed.judged === 'better' || parsed.judged === 'worse' ? parsed.judged : 'neutral';
+        if (!['better', 'worse', 'neutral'].includes(parsed.judged)) throw new Error('probe_grader_invalid_verdict');
+        const judged = parsed.judged;
         const reason = typeof parsed.reason === 'string' ? parsed.reason : 'no reason given';
         return { judged, reason };
       } catch {
-        return { judged: 'neutral', reason: 'grader parse failed' };
+        throw new Error('probe_grader_invalid_contract');
       }
     },
   };

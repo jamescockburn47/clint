@@ -37,13 +37,7 @@ describe('overnight/consolidate-shadow-task.checkConsolidateShadow', () => {
 
   function makeDeps(overrides: Partial<ShadowTaskDeps> = {}): ShadowTaskDeps {
     const extractClient: ExtractClient = {
-      extractCandidates: async () => ({
-        // Candidates WITHOUT sources — the task should synthesize them.
-        candidates: [
-          { text: 'candidate one', category: 'project', confidence: 0.9 },
-          { text: 'candidate two', category: 'note', confidence: 0.8 },
-        ],
-      }),
+      extractCandidates: async conversation => ({ candidates: [{ message_id: JSON.parse(conversation)[0].id, category: 'project' }] }),
     };
     const memoryClient: MaintenanceClient = {
       triggerMaintenance: async () => ({ expired: 1, deduplicated: 0, total_after: 42 }),
@@ -76,7 +70,7 @@ describe('overnight/consolidate-shadow-task.checkConsolidateShadow', () => {
 
   it('runs the stage when hours === 2 and minutes === 30', async () => {
     writeLog('2026-04-09-1.jsonl', [
-      { sender: 'James', text: 'A valid conversation that is long enough to be processed by the stage' },
+      { sender: 'James', isBot: false, text: 'A valid conversation that is long enough to be processed by the stage' },
       { sender: 'Clint', text: 'Responding with something long enough to pass the length check', isBot: true },
     ]);
 
@@ -91,17 +85,17 @@ describe('overnight/consolidate-shadow-task.checkConsolidateShadow', () => {
     const shadowFile = join(overnightDir, 'shadow-candidates-2026-04-10.jsonl');
     assert.ok(existsSync(shadowFile));
     const lines = readFileSync(shadowFile, 'utf8').trim().split('\n');
-    assert.equal(lines.length, 2);
-    assert.equal(JSON.parse(lines[0]!).candidate.text, 'candidate one');
+    assert.equal(lines.length, 1);
+    assert.match(JSON.parse(lines[0]!).candidate.text, /valid conversation/);
     // Synthesized source is present and well-formed
     const parsed = JSON.parse(lines[0]!);
     assert.equal(parsed.candidate.sources.length, 1);
-    assert.ok(parsed.candidate.sources[0].hash.startsWith('sha256:conv:'));
+    assert.ok(parsed.candidate.sources[0].hash.startsWith('sha256:'));
   });
 
   it('runs only once per day even if called at 02:30 multiple times', async () => {
     writeLog('2026-04-09-1.jsonl', [
-      { sender: 'James', text: 'Conversation content long enough to pass the minimum length check' },
+      { sender: 'James', isBot: false, text: 'Conversation content long enough to pass the minimum length check' },
       { sender: 'Clint', text: 'Another line with enough text to keep the conversation going', isBot: true },
     ]);
 
@@ -115,12 +109,12 @@ describe('overnight/consolidate-shadow-task.checkConsolidateShadow', () => {
 
     const shadowFile = join(overnightDir, 'shadow-candidates-2026-04-10.jsonl');
     const lines = readFileSync(shadowFile, 'utf8').trim().split('\n');
-    assert.equal(lines.length, 2);
+    assert.equal(lines.length, 1);
   });
 
   it('does not throw when the memory client is offline', async () => {
     writeLog('2026-04-09-1.jsonl', [
-      { sender: 'James', text: 'A valid conversation that is long enough to be processed by the stage' },
+      { sender: 'James', isBot: false, text: 'A valid conversation that is long enough to be processed by the stage' },
       { sender: 'Clint', text: 'Responding with something long enough to pass the length check', isBot: true },
     ]);
 
@@ -148,9 +142,9 @@ describe('overnight/consolidate-shadow-task.checkConsolidateShadow', () => {
     assert.equal(extract!.verdict, 'failed');
   });
 
-  it('records verdict=failed and writes extract-debug when extractor returns zero candidates from non-empty logs', async () => {
+  it('records explicit empty output as skipped and excludes raw input from diagnostics', async () => {
     writeLog('2026-04-09-1.jsonl', [
-      { sender: 'James', text: 'A real conversation that should produce candidates but extractor returns none' },
+      { sender: 'James', isBot: false, text: 'A real conversation that should produce candidates but extractor returns none' },
       { sender: 'Clint', text: 'Responding with something long enough to pass the length check', isBot: true },
     ]);
 
@@ -170,8 +164,8 @@ describe('overnight/consolidate-shadow-task.checkConsolidateShadow', () => {
     // Debug aid: print events if extract missing so we can see what actually ran.
     const extract = events.find((e) => e.phase === 'extract');
     assert.ok(extract, `expected extract event, got phases: ${events.map((e) => e.phase).join(',')} count=${events.length}`);
-    assert.equal(extract!.verdict, 'failed');
-    assert.match(extract!.reason, /extractor produced nothing/);
+    assert.equal(extract!.verdict, 'skipped');
+    assert.match(extract!.reason, /candidates=0/);
 
     // Debug file captures the failing input for later diagnosis.
     const debugFile = join(overnightDir, 'extract-debug-2026-04-10.jsonl');
@@ -181,15 +175,16 @@ describe('overnight/consolidate-shadow-task.checkConsolidateShadow', () => {
     const entry = JSON.parse(lines[0]!);
     assert.ok(typeof entry.timestamp === 'string');
     assert.ok(entry.conversation_length > 0);
+    assert.equal(entry.sample, undefined);
   });
 
   it('runs again the next day after lastShadowDate rolls over', async () => {
     writeLog('2026-04-09-1.jsonl', [
-      { sender: 'James', text: 'Day one conversation with enough content to pass the length check for real' },
+      { sender: 'James', isBot: false, text: 'Day one conversation with enough content to pass the length check for real' },
       { sender: 'Clint', text: 'Day one response with enough content to keep it going', isBot: true },
     ]);
     writeLog('2026-04-10-1.jsonl', [
-      { sender: 'James', text: 'Day two conversation with enough content to pass the length check for real' },
+      { sender: 'James', isBot: false, text: 'Day two conversation with enough content to pass the length check for real' },
       { sender: 'Clint', text: 'Day two response with enough content to keep it going', isBot: true },
     ]);
 

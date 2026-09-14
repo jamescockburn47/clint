@@ -36,7 +36,7 @@ describe('evoFetch', () => {
     assert.equal(data.result, 'ok');
   });
 
-  it('throws on non-ok HTTP status with truncated body', async () => {
+  it('throws the HTTP status without logging the upstream response body', async () => {
     globalThis.fetch = async () => ({
       ok: false,
       status: 503,
@@ -47,7 +47,7 @@ describe('evoFetch', () => {
       () => evoFetch('http://10.0.0.2:8080/v1/chat'),
       (err) => {
         assert.ok(err.message.includes('EVO HTTP 503'));
-        assert.ok(err.message.includes('Service Unavailable'));
+        assert.equal(err.message, 'EVO HTTP 503');
         assert.equal(err.status, 503);
         return true;
       },

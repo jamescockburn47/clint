@@ -11,7 +11,7 @@ import type { CandidateObservation, PatternObservation, DriftObservation } from 
 import type { PatternCluster } from '../improve-grooming.js';
 
 const SAMPLE_RESPONSE = `[
-  {"id": "c1", "title": "Cap cortex gather timeout at 15s", "category": "performance", "scope": "src/cortex.js:gather", "evidence_refs": ["pattern:cortex_slow", "quality_failure:slow_cortex"], "predicted_benefit": "planning p95 down from 87s to 20s"},
+  {"id": "c1", "title": "Cap cortex gather timeout at 15s", "category": "performance", "scope": "src/cortex-cache.js:gather", "evidence_refs": ["pattern:cortex_slow", "quality_failure:slow_cortex"], "predicted_benefit": "planning p95 down from 87s to 20s"},
   {"id": "c2", "title": "Add needsPlan drift detector", "category": "quality", "scope": "src/reasoning-trace.js", "evidence_refs": ["pattern:low_tool_usage", "drift:low_tool_usage"], "predicted_benefit": "catch classifier drift early"}
 ]`;
 
@@ -26,7 +26,7 @@ describe('overnight/improve-synthesis.parseSynthesisResponse', () => {
   });
 
   it('assigns a synthetic id when the response omits one', () => {
-    const resp = `[{"title": "fix cortex", "category": "performance", "scope": "src/cortex.js", "evidence_refs": ["pattern:x", "drift:y"], "predicted_benefit": "faster"}]`;
+    const resp = `[{"title": "fix cortex", "category": "performance", "scope": "src/cortex-cache.js", "evidence_refs": ["pattern:x", "drift:y"], "predicted_benefit": "faster"}]`;
     const result = parseSynthesisResponse(resp);
     assert.equal(result.length, 1);
     assert.ok(result[0]!.id.length > 0);
@@ -34,7 +34,7 @@ describe('overnight/improve-synthesis.parseSynthesisResponse', () => {
 
   it('rejects candidates with fewer than 2 evidence_refs (spec §4.4 step 3)', () => {
     const resp = `[
-      {"id": "ok", "title": "valid", "category": "x", "scope": "src/y.js", "evidence_refs": ["a", "b"], "predicted_benefit": "p"},
+      {"id": "ok", "title": "valid", "category": "x", "scope": "src/request-id.js", "evidence_refs": ["a", "b"], "predicted_benefit": "p"},
       {"id": "bad", "title": "weak evidence", "category": "x", "scope": "src/z.js", "evidence_refs": ["a"], "predicted_benefit": "p"}
     ]`;
     const result = parseSynthesisResponse(resp);
@@ -44,8 +44,8 @@ describe('overnight/improve-synthesis.parseSynthesisResponse', () => {
 
   it('rejects candidates with mission-regression titles', () => {
     const resp = `[
-      {"id": "bad", "title": "Simpler cortex by removing memory retrieval", "category": "performance", "scope": "src/cortex.js", "evidence_refs": ["a", "b"], "predicted_benefit": "faster"},
-      {"id": "ok", "title": "Cap cortex timeout", "category": "performance", "scope": "src/cortex.js", "evidence_refs": ["a", "b"], "predicted_benefit": "faster"}
+      {"id": "bad", "title": "Simpler cortex by removing memory retrieval", "category": "performance", "scope": "src/cortex-cache.js", "evidence_refs": ["a", "b"], "predicted_benefit": "faster"},
+      {"id": "ok", "title": "Cap cortex timeout", "category": "performance", "scope": "src/cortex-cache.js", "evidence_refs": ["a", "b"], "predicted_benefit": "faster"}
     ]`;
     const result = parseSynthesisResponse(resp);
     assert.equal(result.length, 1);
@@ -67,8 +67,8 @@ describe('overnight/improve-synthesis.parseSynthesisResponseWithRejections', () 
 
   it('returns per-candidate rejection reasons with titles preserved', () => {
     const resp = `[
-      {"id": "weak", "title": "thin evidence", "category": "x", "scope": "src/y.js", "evidence_refs": ["a"], "predicted_benefit": "p"},
-      {"id": "ok", "title": "valid fix", "category": "x", "scope": "src/y.js", "evidence_refs": ["a", "b"], "predicted_benefit": "p"},
+      {"id": "weak", "title": "thin evidence", "category": "x", "scope": "src/request-id.js", "evidence_refs": ["a"], "predicted_benefit": "p"},
+      {"id": "ok", "title": "valid fix", "category": "x", "scope": "src/request-id.js", "evidence_refs": ["a", "b"], "predicted_benefit": "p"},
       {"id": "noscope", "title": "missing scope", "evidence_refs": ["a", "b"]},
       "not-an-object"
     ]`;
@@ -111,7 +111,7 @@ describe('overnight/improve-synthesis.synthesiseFinalCandidates', () => {
         title: 'timeout cortex',
         category: 'performance',
         predicted_benefit: 'faster',
-        scope: 'src/cortex.js',
+        scope: 'src/cortex-cache.js',
         rough_cost: 'small',
         evidence_refs: ['pattern:cortex_slow'],
         weight: 4,
@@ -164,8 +164,8 @@ describe('overnight/improve-synthesis.synthesiseFinalCandidates', () => {
 
   it('captures rejection reasons in diagnostics when candidates fail validation', async () => {
     const response = `[
-      {"id": "weak", "title": "thin evidence", "category": "x", "scope": "src/y.js", "evidence_refs": ["a"], "predicted_benefit": "p"},
-      {"id": "mission", "title": "Simpler cortex by removing memory retrieval", "category": "x", "scope": "src/y.js", "evidence_refs": ["a", "b"], "predicted_benefit": "p"}
+      {"id": "weak", "title": "thin evidence", "category": "x", "scope": "src/request-id.js", "evidence_refs": ["a"], "predicted_benefit": "p"},
+      {"id": "mission", "title": "Simpler cortex by removing memory retrieval", "category": "x", "scope": "src/request-id.js", "evidence_refs": ["a", "b"], "predicted_benefit": "p"}
     ]`;
     const result = await synthesiseFinalCandidates({
       client: makeClient(response),

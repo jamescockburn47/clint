@@ -102,7 +102,7 @@ describe('overnight/improve-deploy.runDeployStage', () => {
       artifacts: makeArtifacts({
         gitDiff: ' data/prompts/system.txt | 5 ++\n 1 file changed, 5 insertions(+), 0 deletions(-)\n',
       }),
-      replay: null,
+      replay: makeReplay('pass'),
       client,
     });
     assert.equal(result.verdict, 'proposal_opened');
@@ -153,7 +153,7 @@ describe('overnight/improve-deploy.runDeployStage', () => {
     assert.equal(client.proposals, 1);
   });
 
-  it('Tier B path opens proposal when replay was not run', async () => {
+  it('missing replay rejects before publishing a branch', async () => {
     const client = makeClient();
     const result = await runDeployStage({
       candidate: makeCandidate(),
@@ -161,7 +161,8 @@ describe('overnight/improve-deploy.runDeployStage', () => {
       replay: null,
       client,
     });
-    assert.equal(result.verdict, 'proposal_opened');
+    assert.equal(result.verdict, 'rejected');
+    assert.equal(client.pushed.length, 0);
     assert.equal(client.merged.length, 0);
     assert.equal(client.proposals, 1);
   });

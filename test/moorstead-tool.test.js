@@ -40,53 +40,26 @@ describe('moorstead admin tools', () => {
   // --- moorstead_status ---
 
   describe('moorsteadStatus', () => {
-    it('calls GET /admin/presence with Authorization header', async () => {
-      let capturedUrl, capturedInit;
-      installFetchMock(async (url, init) => {
-        capturedUrl = url;
-        capturedInit = init;
-        return {
-          ok: true,
-          json: async () => ({ rooms: { moor: [{ pid: 'p1', name: 'Alice', x: 0, y: 0, z: 0 }] } }),
-        };
-      });
-
+    it('reads the live dashboard overview with a bounded timeout', async () => {
+      let url, init;
+      installFetchMock(async (u, i) => { url = u; init = i; return { ok: true, json: async () => ({ live: [] }) }; });
       await moorsteadStatus();
-
-      assert.match(capturedUrl, /\/admin\/presence$/);
-      assert.equal(capturedInit.method, 'GET');
-      assert.match(capturedInit.headers['Authorization'], /^Bearer /);
+      assert.match(url, /\/api\/overview$/);
+      assert.ok(init.signal instanceof AbortSignal);
     });
-
-    it('formats multi-room presence correctly', async () => {
-      installFetchMock(async () => ({
-        ok: true,
-        json: async () => ({
-          rooms: {
-            moor: [
-              { pid: 'p1', name: 'Alice', x: 0, y: 0, z: 0 },
-              { pid: 'p2', name: 'Tom', x: 1, y: 0, z: 0 },
-            ],
-            dale: [],
-          },
-        }),
-      }));
-
+    it('formats the current per-room player, location and day contract', async () => {
+      installFetchMock(async () => ({ ok: true, json: async () => ({ live: [
+        { room: 'moor', name: 'Alice', loc: 'river', day: 2 },
+        { room: 'dale', name: 'Tom', loc: 'hill', day: 3 },
+      ] }) }));
       const result = await moorsteadStatus();
-
-      assert.match(result, /\*Moorstead\*/);
-      assert.match(result, /moor: Alice, Tom \(2\)/);
-      assert.match(result, /dale: empty/);
+      assert.match(result, /2 on now/);
+      assert.match(result, /moor: Alice \(river, day 2\)/);
+      assert.match(result, /dale: Tom \(hill, day 3\)/);
     });
-
-    it('returns no-active-rooms message when rooms is empty', async () => {
-      installFetchMock(async () => ({
-        ok: true,
-        json: async () => ({ rooms: {} }),
-      }));
-
-      const result = await moorsteadStatus();
-      assert.match(result, /no active rooms/);
+    it('reports an empty live overview', async () => {
+      installFetchMock(async () => ({ ok: true, json: async () => ({ live: [] }) }));
+      assert.match(await moorsteadStatus(), /nobody on the moor/);
     });
 
     it('returns clean error string on 401', async () => {

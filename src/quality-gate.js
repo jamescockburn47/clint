@@ -9,6 +9,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import config from './config.js';
 import logger from './logger.js';
+import { currentConversation } from './conversation-context.js';
 
 // Prefer Claude for critique when available (its critique quality is
 // notably stronger on this prompt). Fall back to MiniMax otherwise so
@@ -78,23 +79,25 @@ export function shouldCritique(category, text, useClaudeClient) {
  * @param {Function} trackTokensFn - Token tracking callback
  * @returns {Promise<string>} - Refined or original text
  */
-export async function runCritique(text, category, trackTokensFn) {
-  if (!critiqueClient) {
+export async function runCritique(text, category, trackTokensFn, reviewClient) {
+  const selected = reviewClient || (currentConversation()?.localOnly ? null : critiqueClient);
+  if (!selected) {
     logger.info('self-critique: skipped (no LLM provider configured)');
     return text;
   }
   try {
-    const critiqueModel = process.env.CRITIQUE_MODEL || critiqueClient.defaultModel;
-    logger.info({ category, responseLen: text.length, model: critiqueModel, provider: critiqueClient.provider }, 'self-critique: reviewing response');
+    const critiqueModel = selected.defaultModel;
+    logger.info({ category, responseLen: text.length, model: critiqueModel, provider: selected.provider }, 'self-critique: reviewing response');
 
-    const critiqueResponse = await critiqueClient.client.messages.create({
+    const critiqueResponse = await selected.client.messages.create({
       model: critiqueModel,
       max_tokens: config.maxResponseTokens * 4,
-      system: CRITIQUE_SYSTEM,
+      system: CRITIQUE_SYSTEM.replaceAll('WhatsApp', currentConversation()?.transport === 'slack' ? 'Slack' : 'WhatsApp'),
       messages: [{ role: 'user', content: `DRAFT RESPONSE TO REVIEW:\n\n${text}` }],
     });
 
     if (trackTokensFn) trackTokensFn(critiqueResponse);
+    if (critiqueResponse.stop_reason !== 'end_turn') throw new Error('incomplete_critique');
 
     let critiqueText = critiqueResponse.content
       .filter(b => b.type === 'text')

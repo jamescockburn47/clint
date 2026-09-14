@@ -1,3 +1,7 @@
+> Historical document. September 2026 behavior and operational policy are defined in
+> [README](README.md), [AGENTS.md](AGENTS.md) and [the overhaul report](docs/clint-overhaul-2026-09-13.md).
+> Earlier AGI, model, deployment and autonomous source-change claims are not current guarantees.
+
 # EVOLUTION.md — Scope-Locked Coding Instructions
 
 You are modifying the Clawdbot codebase via an automated evolution task.

@@ -18,11 +18,12 @@ import { OvernightRunner } from './runner.js';
 import { makeConsolidateStage } from './consolidate.js';
 import { ShadowSink } from './consolidate-shadow-sink.js';
 import { PromotedSink, type PromotedSinkDeps } from './consolidate-promoted-sink.js';
-import { synthesizeSources } from './consolidate-source-synthesizer.js';
+import { EXTRACTION_PROMPT, parseExtractionResponse } from './grounded-memory.js';
 import type { StoreClient } from './consolidate-store.js';
 import type { ExtractClient } from './consolidate-extract.js';
 import type { MaintenanceClient, TopicIndexClient } from './consolidate-maintenance.js';
-import type { MemoryCandidate } from './consolidate-validate.js';
+import config from '../config.js';
+import { z } from 'zod';
 
 /** London hour the task fires. */
 export const SHADOW_TASK_HOUR = 2;
@@ -69,13 +70,11 @@ export function withExtractDebug(
       if (result.candidates.length > 0) return result;
 
       const conversationLength = conversation.length;
-      const sample = conversation.slice(0, 500);
 
       logger.info(
         {
           source,
           conversation_length: conversationLength,
-          sample,
         },
         'consolidate extract returned zero candidates',
       );
@@ -89,7 +88,6 @@ export function withExtractDebug(
             timestamp: new Date().toISOString(),
             source,
             conversation_length: conversationLength,
-            sample,
           };
           await appendFile(file, JSON.stringify(entry) + '\n', 'utf8');
         } catch (err) {
@@ -106,6 +104,7 @@ export function withExtractDebug(
 }
 
 export interface ShadowTaskDeps {
+  mode?: 'shadow' | 'promoted';
   overnightDir: string;
   logDir: string;
   repoRoot: string;
@@ -132,7 +131,7 @@ export function selectStoreClient(
   deps: ShadowTaskDeps,
   todayStr: string,
 ): StoreClient {
-  const mode = (process.env.CONSOLIDATE_MODE || 'promoted').toLowerCase();
+  const mode = deps.mode ?? config.consolidateMode;
   if (mode === 'shadow') {
     return new ShadowSink({ overnightDir: deps.overnightDir, todayStr });
   }
@@ -143,30 +142,15 @@ export function selectStoreClient(
     );
     return new ShadowSink({ overnightDir: deps.overnightDir, todayStr });
   }
-  return new PromotedSink({ deps: deps.promotedSinkDeps });
-}
-
-/**
- * Wrap any ExtractClient so that every candidate returned gets a synthesized
- * conversation-level source[] attached before reaching the validator. This is
- * the Phase-1 shadow-mode compromise applied uniformly regardless of whether
- * the underlying client is production (extractWithoutStoring) or a test mock.
- */
-function withSynthesizedSources(inner: ExtractClient): ExtractClient {
-  return {
-    extractCandidates: async (conversation, source) => {
-      const { candidates } = await inner.extractCandidates(conversation, source);
-      return {
-        candidates: candidates.map((item) => {
-          const base = item as Partial<MemoryCandidate>;
-          return {
-            ...base,
-            sources: synthesizeSources(conversation),
-          } as MemoryCandidate;
-        }),
-      };
-    },
-  };
+  const archive = new ShadowSink({ overnightDir: deps.overnightDir, todayStr });
+  const promoted = new PromotedSink({ deps: deps.promotedSinkDeps });
+  return { storeValidated: async candidate => {
+    await archive.storeValidated(candidate);
+    // The legacy remote store has no enforced read scopes. Private/unknown sources stay local.
+    if (candidate.sources.length && candidate.sources.every(source => source.chatJid?.endsWith('@g.us'))) {
+      await promoted.storeValidated(candidate);
+    }
+  } };
 }
 
 /**
@@ -174,27 +158,25 @@ function withSynthesizedSources(inner: ExtractClient): ExtractClient {
  * topic-index.js lazily so tests that inject deps don't pay the cost of
  * loading them (and don't trip config validation on missing env vars).
  */
-async function buildDefaultDeps(): Promise<ShadowTaskDeps> {
-  const { extractWithoutStoring, triggerMaintenance, storeMemory } = await import('../memory.js');
+export async function buildConsolidateDeps(): Promise<ShadowTaskDeps> {
+  const { triggerMaintenance, storeMemory, checkEvoHealth } = await import('../memory.js');
+  const { evoSimpleChat } = await import('../evo-llm.js');
   const { indexDayTopics, pruneTopicIndex } = await import('../topic-index.js');
+  await checkEvoHealth({ recover: false });
 
-  // Raw extract client — just forwards to EVO. Source synthesis is applied
-  // uniformly in checkConsolidateShadow via withSynthesizedSources so tests
-  // and production go through the same wrapping.
+  // The model selects IDs; the extractor resolves each against the original log.
   const extractClient: ExtractClient = {
     extractCandidates: async (conversation, source) => {
-      const resp = await extractWithoutStoring(conversation, source);
-      const raw = (resp?.extracted ?? []) as unknown[];
-      return { candidates: raw };
+      const raw = await evoSimpleChat(EXTRACTION_PROMPT, conversation, 2000, 120_000);
+      return { candidates: parseExtractionResponse(raw) };
     },
   };
 
   const memoryClient: MaintenanceClient = {
     triggerMaintenance: async () => {
-      const r = await triggerMaintenance();
-      if (!r || r.error) {
-        throw new Error(r?.error ?? 'triggerMaintenance returned null');
-      }
+      const r = z.object({ expired: z.number().int().nonnegative(),
+        deduplicated: z.number().int().nonnegative(), total_after: z.number().int().nonnegative(),
+      }).parse(await triggerMaintenance());
       return {
         expired: r.expired ?? 0,
         deduplicated: r.deduplicated ?? 0,
@@ -213,9 +195,9 @@ async function buildDefaultDeps(): Promise<ShadowTaskDeps> {
 
   const promotedSinkDeps: PromotedSinkDeps = {
     storeMemory: async (fact, category, tags, confidence, source) => {
-      const result = await storeMemory(fact, category, tags, confidence, source);
-      // `storeMemory` returns undefined on some offline paths — normalise.
-      return result ?? { queued: true };
+      return z.object({ stored: z.boolean().optional(), queued: z.boolean().optional(),
+        offline: z.boolean().optional(), error: z.string().optional(),
+      }).parse(await storeMemory(fact, category, tags, confidence, source));
     },
   };
 
@@ -253,7 +235,7 @@ export async function checkConsolidateShadow(
   lastShadowDate = todayStr;
   extractDebugWritesThisRun = 0;
 
-  const resolvedDeps = deps ?? (await buildDefaultDeps());
+  const resolvedDeps = deps ?? (await buildConsolidateDeps());
 
   const storeClient = selectStoreClient(resolvedDeps, todayStr);
 
@@ -268,7 +250,7 @@ export async function checkConsolidateShadow(
 
   const stage = makeConsolidateStage({
     logDir: resolvedDeps.logDir,
-    extractClient: withSynthesizedSources(debugWrapped),
+    extractClient: debugWrapped,
     storeClient,
     memoryClient: resolvedDeps.memoryClient,
     topicClient: resolvedDeps.topicClient,

@@ -22,10 +22,12 @@ const ConfigSchema = z.object({
   CLAUDE_MODEL: z.string().optional().default('claude-sonnet-4-6'),
   MINIMAX_API_KEY: z.string().optional().default(''),
   MINIMAX_BASE_URL: z.string().optional().default('https://api.minimax.io/anthropic'),
-  MINIMAX_MODEL: z.string().optional().default('MiniMax-M2.7'),
+  MINIMAX_MODEL: z.string().optional().default('MiniMax-M3'),
   MINIMAX_ENABLED: boolFromEnv.default('true'),
 
   // WhatsApp
+  WHATSAPP_ENABLED: boolFromEnv.default('true'),
+  OVERNIGHT_IN_PROCESS: z.string().optional().default('false').transform(v => v === 'true'),
   WHATSAPP_GROUP_JID: z.string().optional().default(''),
   TRIGGER_PREFIX: z.string().optional().default('/clawd'),
   RANDOM_REPLY_CHANCE: floatFromEnv(0.05).default('0.05'),
@@ -78,7 +80,7 @@ const ConfigSchema = z.object({
   SOVREN_WEB_URL: z.string().url().optional().default('https://www.sovren.xyz'),
   SOVREN_API_URL: z.string().url().optional().default('https://api.sovren.xyz'),
   SOVREN_DEMO_EMAIL: z.string().optional().default('peter@slaneyadvisors.com'),
-  SOVREN_DEMO_PASSWORD: z.string().optional().default('slaney2026'),
+  SOVREN_DEMO_PASSWORD: z.string().optional().default(''),
 
   // Dashboard — Pi connects to EVO's HTTP server
   HTTP_PORT: intFromEnv(3000).default('3000'),
@@ -90,6 +92,9 @@ const ConfigSchema = z.object({
   EVO_PLANNER_LABEL: z.string().optional().default('qwen3-4b-instruct-2507-q4_k_m (llama-server :8085, restored 2026-04-24 — hot-path classifier)'),
 
   // Local models via llama.cpp — bot runs on EVO, all localhost
+  EVO_CHAT_MODEL: z.string().min(1).optional().default('qwen3.8-27b'),
+  OVERNIGHT_RESEARCH_TOPICS: z.string().default('["local AI agent reliability evaluation","retrieval augmented generation source attribution"]')
+    .transform(value => JSON.parse(value)).pipe(z.array(z.string().min(1).max(200)).max(3)),
   EVO_LLM_URL: z.string().url().optional().default('http://localhost:8080'),
   // Classifier and planner URLs — 2026-04-24 rebalance:
   //   - 4B planner restored on :8085 for the hot-path classifier call
@@ -168,6 +173,18 @@ const ConfigSchema = z.object({
   LQC_SENTRY_PROJECT_BACKEND: z.string().optional().default(''),
   LQC_SENTRY_PROJECT_FRONTEND: z.string().optional().default(''),
   LQC_SENTRY_WEBHOOK_SECRET: z.string().optional().default(''),
+  STEADS_WEBHOOK_SECRET: z.string().optional().default(''),
+  STEADS_ENABLED: z.string().optional().default('true').transform(v => v !== 'false').pipe(z.boolean()),
+  STEADS_JID: z.string().optional().default(''),
+
+  // The Spire (members' 3D venue) — Clint joins as a live orb via the venue's own
+  // MCP endpoint, the same URL + bearer-key path any other agent uses. Disabled by
+  // default so a plain deploy doesn't try to join. Every venue speaker is treated
+  // as a non-owner with a web-only tool allowlist (see src/spire.js).
+  SPIRE_ENABLED: boolFromEnv.default('false'),
+  SPIRE_MCP_URL: z.string().url().optional().default('https://spire.lquorum.blog/mcp'),
+  SPIRE_AGENT_KEY: z.string().optional().default(''),
+  SPIRE_NAME: z.string().optional().default('Clint'),
   // Clint-side Sentry (optional): when SENTRY_DSN is set, Clint reports
   // its own errors to Sentry via native-fetch envelope ingest (no SDK
   // dependency). src/sentry.js wires uncaught-exception + unhandled-
@@ -237,6 +254,8 @@ const config = {
   minimaxEnabled: env.MINIMAX_ENABLED,
 
   whatsappGroupJid: env.WHATSAPP_GROUP_JID,
+  whatsappEnabled: env.WHATSAPP_ENABLED,
+  overnightInProcess: env.OVERNIGHT_IN_PROCESS,
   triggerPrefix: env.TRIGGER_PREFIX,
   randomReplyChance: env.RANDOM_REPLY_CHANCE,
   keywordBoostChance: env.KEYWORD_BOOST_CHANCE,
@@ -285,6 +304,8 @@ const config = {
   evoPlannerLabel: env.EVO_PLANNER_LABEL,
 
   evoLlmUrl: env.EVO_LLM_URL,
+  evoChatModel: env.EVO_CHAT_MODEL,
+  overnightResearchTopics: env.OVERNIGHT_RESEARCH_TOPICS,
   evoClassifierUrl: env.EVO_CLASSIFIER_URL,
   evoPlannerUrl: env.EVO_PLANNER_URL,
   evoToolEnabled: env.EVO_TOOL_ENABLED,
@@ -329,6 +350,15 @@ const config = {
   lqcSentryProjectBackend: env.LQC_SENTRY_PROJECT_BACKEND,
   lqcSentryProjectFrontend: env.LQC_SENTRY_PROJECT_FRONTEND,
   lqcSentryWebhookSecret: env.LQC_SENTRY_WEBHOOK_SECRET,
+  steadsWebhookSecret: env.STEADS_WEBHOOK_SECRET,
+  steadsEnabled: env.STEADS_ENABLED,
+  steadsJid: env.STEADS_JID,
+
+  // The Spire
+  spireEnabled: env.SPIRE_ENABLED,
+  spireMcpUrl: env.SPIRE_MCP_URL,
+  spireAgentKey: env.SPIRE_AGENT_KEY,
+  spireName: env.SPIRE_NAME,
   lqcouncilRefreshSecret: env.LQCOUNCIL_REFRESH_SECRET,
   consolidateMode: env.CONSOLIDATE_MODE,
 

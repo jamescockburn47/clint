@@ -1,124 +1,68 @@
-// test/consolidate-promoted-sink.test.js — shadow→promoted cutover.
-
-import { describe, it, beforeEach, afterEach } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pathToFileURL } from 'node:url';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { PromotedSink } from '../src/overnight/consolidate-promoted-sink.ts';
+import { readSourceLine, groundCandidate } from '../src/overnight/grounded-memory.ts';
+import { selectStoreClient } from '../src/overnight/consolidate-shadow-task.ts';
 
-process.env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || 'sk-test';
+const message = readSourceLine(JSON.stringify({ text: 'I prefer meetings on Fridays.', isBot: false,
+  sender: 'Fixture speaker', senderJid: 'speaker', chatJid: 'fixture@g.us', timestamp: '2026-09-12T12:00:00Z' }), 'fixture.jsonl', 1);
+const candidate = groundCandidate({ message_id: message.id, category: 'preference' }, [message]);
 
-async function loadModule(relPath) {
-  const url = pathToFileURL(join(process.cwd(), relPath)).href + `?t=${Date.now()}_${Math.random()}`;
-  return import(url);
-}
-
-const candidate = {
-  text: 'James prefers meetings booked at 3pm on Fridays.',
-  category: 'preference',
-  confidence: 0.8,
-  sources: [{ hash: 'sha256:abc123def456', excerpt: 'friday 3pm works' }],
-};
-
-describe('PromotedSink', () => {
-  it('maps a validated candidate through to storeMemory with evidence tags', async () => {
-    const { PromotedSink } = await loadModule('src/overnight/consolidate-promoted-sink.ts');
-    const calls = [];
-    const sink = new PromotedSink({
-      deps: {
-        storeMemory: async (fact, category, tags, confidence, source) => {
-          calls.push({ fact, category, tags, confidence, source });
-          return { stored: true };
-        },
-      },
-    });
-
-    await sink.storeValidated(candidate);
-    assert.equal(calls.length, 1);
-    const [call] = calls;
-    assert.equal(call.fact, 'James prefers meetings booked at 3pm on Fridays.');
-    assert.equal(call.category, 'preference');
-    assert.equal(call.confidence, 0.8);
-    assert.equal(call.source, 'consolidate-promoted');
-    // Evidence tag carries a prefix of the source hash.
-    assert.ok(call.tags.some((t) => t.startsWith('src:')), 'expected evidence-ref tag');
-  });
-
-  it('stamps chatJid tag when provided', async () => {
-    const { PromotedSink } = await loadModule('src/overnight/consolidate-promoted-sink.ts');
-    let captured = null;
-    const sink = new PromotedSink({
-      chatJid: '120363409858920612@g.us',
-      deps: {
-        storeMemory: async (fact, category, tags) => {
-          captured = tags;
-          return { stored: true };
-        },
-      },
-    });
-    await sink.storeValidated(candidate);
-    assert.ok(captured.some((t) => t === 'chat:120363409858920612@g.us'));
-  });
-
-  it('queued result (offline) is not treated as failure', async () => {
-    const { PromotedSink } = await loadModule('src/overnight/consolidate-promoted-sink.ts');
-    const sink = new PromotedSink({
-      deps: {
-        storeMemory: async () => ({ stored: false, queued: true }),
-      },
-    });
-    await assert.doesNotReject(sink.storeValidated(candidate));
-  });
-
-  it('throws when storeMemory returns an error field', async () => {
-    const { PromotedSink } = await loadModule('src/overnight/consolidate-promoted-sink.ts');
-    const sink = new PromotedSink({
-      deps: {
-        storeMemory: async () => ({ error: 'rate_limit' }),
-      },
-    });
-    await assert.rejects(() => sink.storeValidated(candidate), /rate_limit/);
-  });
+test('promotion preserves attribution and distinguishes an assertion from a verified fact', async () => {
+  let call;
+  await new PromotedSink({ deps: { storeMemory: async (...args) => { call = args; return { stored: true }; } } }).storeValidated(candidate);
+  assert.match(call[0], /Recorded statement by Fixture speaker \(unverified claim\)/);
+  assert.ok(call[0].includes(JSON.stringify(message.text)));
+  assert.ok(call[2].includes('chat:fixture@g.us'));
+  const provenance = JSON.parse(call[4]);
+  assert.deepEqual(provenance.sources, candidate.sources);
+  assert.equal(provenance.factual_status, 'unverified_statement');
 });
-
-describe('selectStoreClient', () => {
-  const baseDeps = {
-    overnightDir: '/tmp/overnight',
-    logDir: '/tmp/logs',
-    repoRoot: '/tmp',
-    extractClient: { extractCandidates: async () => ({ candidates: [] }) },
-    memoryClient: { triggerMaintenance: async () => ({ expired: 0, deduplicated: 0, total_after: 0 }) },
-    topicClient: { indexDayTopics: async () => 0, pruneTopicIndex: async () => 0 },
-    promotedSinkDeps: { storeMemory: async () => ({ stored: true }) },
-  };
-  const savedMode = process.env.CONSOLIDATE_MODE;
-  afterEach(() => { process.env.CONSOLIDATE_MODE = savedMode ?? ''; });
-
-  it('CONSOLIDATE_MODE=shadow returns ShadowSink', async () => {
-    process.env.CONSOLIDATE_MODE = 'shadow';
-    const { selectStoreClient } = await loadModule('src/overnight/consolidate-shadow-task.ts');
-    const sink = selectStoreClient(baseDeps, '2026-04-19');
-    assert.equal(sink.constructor.name, 'ShadowSink');
-  });
-
-  it('CONSOLIDATE_MODE=promoted returns PromotedSink', async () => {
-    process.env.CONSOLIDATE_MODE = 'promoted';
-    const { selectStoreClient } = await loadModule('src/overnight/consolidate-shadow-task.ts');
-    const sink = selectStoreClient(baseDeps, '2026-04-19');
-    assert.equal(sink.constructor.name, 'PromotedSink');
-  });
-
-  it('default (unset) returns PromotedSink — post-cutover default', async () => {
-    delete process.env.CONSOLIDATE_MODE;
-    const { selectStoreClient } = await loadModule('src/overnight/consolidate-shadow-task.ts');
-    const sink = selectStoreClient(baseDeps, '2026-04-19');
-    assert.equal(sink.constructor.name, 'PromotedSink');
-  });
-
-  it('falls back to ShadowSink when promoted requested but deps missing', async () => {
-    process.env.CONSOLIDATE_MODE = 'promoted';
-    const { selectStoreClient } = await loadModule('src/overnight/consolidate-shadow-task.ts');
-    const deps = { ...baseDeps, promotedSinkDeps: undefined };
-    const sink = selectStoreClient(deps, '2026-04-19');
-    assert.equal(sink.constructor.name, 'ShadowSink');
-  });
+test('offline, queued, absent and failed acknowledgements do not count as persisted', async () => {
+  for (const result of [undefined, { queued: true }, { stored: false }, { stored: true, offline: true }, { error: 'private detail' }]) {
+    await assert.rejects(new PromotedSink({ deps: { storeMemory: async () => result } }).storeValidated(candidate), /memory_(not_persisted|store_failed)/);
+  }
+});
+test('unsourced model output never reaches the memory service', async () => {
+  let calls = 0;
+  const sink = new PromotedSink({ deps: { storeMemory: async () => { calls++; return { stored: true }; } } });
+  await assert.rejects(sink.storeValidated({ ...candidate, sources: [] }), /not_promotable/);
+  await assert.rejects(sink.storeValidated({ ...candidate, verification: undefined }), /not_promotable/);
+  assert.equal(calls, 0);
+});
+test('private DM evidence remains local and cannot enter the globally readable remote memory store', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'clint-private-'));
+  let remoteCalls = 0;
+  try {
+    const privateMessage = readSourceLine(JSON.stringify({ text: 'Private synthetic matter.', isBot: false,
+      senderJid: 'owner', chatJid: 'owner@s.whatsapp.net' }), 'dm.jsonl', 1);
+    const privateCandidate = groundCandidate({ message_id: privateMessage.id, category: 'project' }, [privateMessage]);
+    const deps = { overnightDir: dir, mode: 'promoted', promotedSinkDeps: { storeMemory: async () => { remoteCalls++; return { stored: true }; } } };
+    await selectStoreClient(deps, '2026-09-13').storeValidated(privateCandidate);
+    assert.equal(remoteCalls, 0);
+    const archive = await readFile(join(dir, (await readdir(dir))[0]), 'utf8');
+    assert.ok(archive.includes(privateMessage.hash));
+    await assert.rejects(new PromotedSink({ deps: deps.promotedSinkDeps }).storeValidated(privateCandidate), /private_or_unknown/);
+    assert.equal(remoteCalls, 0);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+test('both modes archive full provenance, only promoted mode calls the remote store', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'clint-sink-'));
+  try {
+    let calls = 0;
+    const deps = { overnightDir: dir, promotedSinkDeps: { storeMemory: async () => { calls++; return { stored: true }; } } };
+    for (const mode of ['shadow', 'promoted']) {
+      await selectStoreClient({ ...deps, mode }, '2026-09-13').storeValidated(candidate);
+    }
+    assert.equal(calls, 1);
+    const files = await readdir(dir);
+    const content = await readFile(join(dir, files.find(file => file.endsWith('.jsonl'))), 'utf8');
+    assert.ok(content.includes(message.hash));
+    assert.ok(content.includes(message.id));
+    await selectStoreClient({ ...deps, mode: 'promoted', promotedSinkDeps: undefined }, '2026-09-14').storeValidated(candidate);
+    assert.equal(calls, 1);
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });

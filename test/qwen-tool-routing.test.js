@@ -77,13 +77,13 @@ describe('selectToolsForProvider', () => {
 });
 
 describe('selectMaxTokensForToolLoop', () => {
-  it('caps the first Qwen tool-selection request', () => {
+  it('allows a complete answer on the first Qwen auto-tool request', () => {
     assert.equal(selectMaxTokensForToolLoop({
       provider: 'qwen',
       isFirstRequest: true,
       hasTools: true,
       defaultMaxTokens: 4000,
-    }), 512);
+    }), 4000);
   });
 
   it('keeps the full final-answer budget after tool results', () => {

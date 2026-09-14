@@ -10,7 +10,7 @@ import { TIMEOUTS } from './constants.js';
 // --- EvoClient class (owns circuit breakers and HTTP state) ---
 
 class EvoClient {
-  /** @param {{ evoLlmUrl: string, evoClassifierUrl: string, evoPlannerUrl: string, evoMemoryUrl: string }} urls */
+  /** @param {{ evoLlmUrl: string, evoClassifierUrl: string, evoPlannerUrl: string, evoMemoryUrl: string, evoChatModel?: string }} urls */
   constructor(urls) {
     this.urls = urls;
     this.llamaBreaker = new CircuitBreaker('evo-llama', { threshold: 3, resetTimeout: 60000 });
@@ -32,6 +32,12 @@ class EvoClient {
     const { timeout: _t, ...fetchOpts } = options;
 
     try {
+      // OpenAI-compatible gateways require a model ID; display labels are not API identifiers.
+      const modelUrls = [this.urls.evoLlmUrl];
+      if (this.urls.evoChatModel && modelUrls.some(base => url === `${base}/v1/chat/completions`) && typeof fetchOpts.body === 'string') {
+        const body = JSON.parse(fetchOpts.body);
+        fetchOpts.body = JSON.stringify({ model: this.urls.evoChatModel, ...body });
+      }
       const resp = await fetch(url, {
         ...fetchOpts,
         signal: controller.signal,
@@ -39,8 +45,9 @@ class EvoClient {
       });
 
       if (!resp.ok) {
-        const errBody = await resp.text().catch(() => 'no body');
-        const err = new Error(`EVO HTTP ${resp.status}: ${errBody.slice(0, 500)}`);
+        // Upstream error bodies may echo prompts, credentials or document text.
+        await resp.body?.cancel();
+        const err = new Error(`EVO HTTP ${resp.status}`);
         err.status = resp.status;
         throw err;
       }
@@ -76,15 +83,24 @@ class EvoClient {
    * @returns {Promise<boolean>}
    */
   async checkLlamaHealth() {
+    return this.checkModelHealth(this.urls.evoLlmUrl);
+  }
+
+  async checkModelHealth(baseUrl) {
     try {
-      const resp = await this.fetch(`${this.urls.evoLlmUrl}/health`, {
+      const resp = await this.fetch(`${baseUrl}/health`, {
         timeout: TIMEOUTS.EVO_HEALTH_CHECK,
       });
       const data = await resp.json();
       return data.status === 'ok' || data.status === 'no slot available';
     } catch {
       // intentional: health check failure is not an error — caller uses boolean
-      return false;
+      try {
+        const response = await this.fetch(`${baseUrl}/v1/models`, { timeout: TIMEOUTS.EVO_HEALTH_CHECK });
+        const data = await response.json();
+        return Array.isArray(data.data) && data.data.some(model => typeof model.id === 'string' &&
+          (!this.urls.evoChatModel || model.id === this.urls.evoChatModel));
+      } catch { return false; }
     }
   }
 
@@ -146,6 +162,7 @@ const client = new EvoClient({
   evoClassifierUrl: config.evoClassifierUrl,
   evoPlannerUrl: config.evoPlannerUrl,
   evoMemoryUrl: config.evoMemoryUrl,
+  evoChatModel: config.evoChatModel,
 });
 
 // --- Facade exports (same API as before — zero breaking changes) ---

@@ -1,6 +1,6 @@
 // Conversation logger — JSONL per-group conversation logging
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { appendFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import logger from './logger.js';
 
@@ -28,15 +28,22 @@ export function logConversation(chatJid, messages) {
       sender: m.senderName,
       text: m.text,
       isBot: m.isBot,
+      chatJid,
+      messageId: m.messageId ?? null,
     };
     if (m.senderJid) entry.senderJid = m.senderJid;
     return JSON.stringify(entry);
   });
 
   try {
-    const existing = existsSync(filepath) ? readFileSync(filepath, 'utf-8') : '';
-    writeFileSync(filepath, existing + lines.join('\n') + '\n');
+    appendFileSync(filepath, lines.join('\n') + '\n');
   } catch (err) {
     logger.error({ err: err.message }, 'conversation log write failed');
   }
+}
+
+/** The transport's fromMe flag, never display names or model judgment, identifies bot echoes. */
+export function logIncomingConversation(message, fields, write = logConversation) {
+  write(fields.chatJid, [{ ...fields, messageId: message.key.id ?? null,
+    isBot: message.key.fromMe === true }]);
 }

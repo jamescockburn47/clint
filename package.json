@@ -1,22 +1,28 @@
 {
   "name": "clawdbot",
   "version": "1.0.0",
-  "description": "Clawd — WhatsApp admin assistant powered by Claude",
+  "description": "Clint — personal and research agent with grounded overnight learning",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
     "start": "tsx src/index.js",
     "dev": "tsx --watch src/index.js",
     "test": "tsx --test --test-concurrency=1 test/*.test.js",
+    "verify": "node scripts/verify.mjs",
+    "learning": "tsx src/overnight/learning-cli.ts",
+    "slack": "node --import tsx src/slack/main.js",
+    "improve:code": "tsx src/overnight/code-cli.ts",
     "typecheck": "tsc --noEmit",
     "eval": "node eval/router-eval.js",
     "lint:standards": "node hooks/lint-all.mjs"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.20.0 <23"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "@slack/socket-mode": "3.0.1",
+    "@slack/web-api": "8.1.1",
     "@whiskeysockets/baileys": "^6.7.16",
     "amadeus": "^11.0.0",
     "exceljs": "^4.4.0",
@@ -33,5 +39,16 @@
     "@types/node": "^25.5.2",
     "esmock": "^2.7.3",
     "typescript": "^6.0.2"
+  },
+  "overrides": {
+    "libsignal": {
+      "protobufjs": "7.6.6"
+    },
+    "exceljs": {
+      "uuid": "11.1.1"
+    },
+    "tsx": {
+      "esbuild": "0.28.2"
+    }
   }
 }

@@ -382,14 +382,14 @@ export function makeImproveStage(
         `worse:${replayResult.worseCount}`,
         `neutral:${replayResult.neutralCount}`,
       ],
-      verdict: replayResult.verdict === 'reject' ? 'rejected' : 'ok',
+      verdict: replayResult.verdict === 'reject' ? 'rejected' : ['blocked', 'skipped'].includes(replayResult.verdict) ? 'failed' : 'ok',
       reason: `replay verdict: ${replayResult.verdict}${replayResult.warning ? ` (${replayResult.warning})` : ''}`,
       evidence_refs: replayResult.worseExchanges.map((e) => e.inputHash),
       rollback_ref: null,
       budget: { opus_sessions: 0, tokens: 0 },
     });
 
-    if (replayResult.verdict === 'reject') {
+    if (['reject', 'blocked', 'skipped'].includes(replayResult.verdict)) {
       return;
     }
 

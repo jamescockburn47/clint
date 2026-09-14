@@ -10,6 +10,13 @@ export const MAX_EXCERPT_CHARS = 200;
 export interface MemorySource {
   hash: string;     // content hash of the conversation log line, e.g. "sha256:abc..."
   excerpt: string;  // short quoted excerpt, ≤MAX_EXCERPT_CHARS
+  message_id?: string;
+  file?: string;
+  line?: number;
+  sender?: string | null;
+  senderJid?: string | null;
+  timestamp?: string | null;
+  chatJid?: string | null;
 }
 
 export interface MemoryCandidate {
@@ -42,7 +49,7 @@ export function validateCandidate(candidate: unknown): ValidationResult {
   if (typeof c.category !== 'string' || c.category.length === 0) {
     return { valid: false, reason: 'category_missing_or_empty' };
   }
-  if (typeof c.confidence !== 'number' || c.confidence < 0 || c.confidence > 1) {
+  if (typeof c.confidence !== 'number' || !Number.isFinite(c.confidence) || c.confidence < 0 || c.confidence > 1) {
     return { valid: false, reason: `confidence_out_of_range: ${c.confidence}` };
   }
 

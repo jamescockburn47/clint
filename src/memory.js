@@ -9,6 +9,7 @@ import config from './config.js';
 import logger from './logger.js';
 import { evoFetchJSON, evoFetch as evoFetchRaw } from './evo-client.js';
 import { TIMEOUTS } from './constants.js';
+import { filterScopedMemories } from './conversation-context.js';
 
 // Re-export logConversation for backward compatibility
 export { logConversation } from './conversation-logger.js';
@@ -57,7 +58,7 @@ class MemoryClient {
     }
   }
 
-  /** @returns {Promise<Response>} Fetch parsed JSON from memory service */
+  /** @returns {Promise<unknown>} Fetch parsed JSON from memory service. Validate at each consumer boundary. */
   _fetch(path, options = {}) {
     return this._fetchJSON(`${this._memoryUrl}${path}`, options);
   }
@@ -65,7 +66,7 @@ class MemoryClient {
   // --- Health ---
 
   /** Check if EVO memory service is online, trigger queue drain on recovery */
-  async checkHealth() {
+  async checkHealth({ recover = true } = {}) {
     try {
       const data = await this._fetch('/health', { timeout: TIMEOUTS.MEMORY_HEALTH_CHECK });
       if (data.status === 'online') {
@@ -73,7 +74,7 @@ class MemoryClient {
         this._online = true;
         this._consecutiveFailures = 0;
         this._lastHealthData = data;
-        if (wasOffline) {
+        if (wasOffline && recover) {
           logger.info('EVO X2 came online — draining queue and syncing cache');
           this._drainQueue().catch(err => logger.error({ err: err.message }, 'queue drain failed'));
           this.syncCache().catch(err => logger.error({ err: err.message }, 'cache sync failed'));
@@ -113,19 +114,19 @@ class MemoryClient {
           body: JSON.stringify({ query, category, limit }),
           timeout: TIMEOUTS.MEMORY_SEARCH,
         });
-        return data.results || [];
+        return filterScopedMemories(data.results || []);
       } catch (err) {
         logger.warn({ err: err.message }, 'EVO X2 search failed, falling back to cache');
       }
     }
-    return this._keywordSearch(query, category, limit);
+    return filterScopedMemories(this._keywordSearch(query, category, limit));
   }
 
   _keywordSearch(query, category, limit) {
     const tokens = new Set(query.toLowerCase().split(/\W+/).filter(t => t.length > 2));
     if (tokens.size === 0) return [];
     const scored = [];
-    for (const m of this._cache) {
+    for (const m of filterScopedMemories(this._cache)) {
       if (category && m.category !== category) continue;
       const allTokens = new Set([...(m.tags || []), ...m.fact.toLowerCase().split(/\W+/).filter(t => t.length > 2)]);
       let matches = 0;
@@ -169,19 +170,7 @@ class MemoryClient {
   }
 
   async extractFromConversation(conversation, source = 'conversation') {
-    if (this._online) {
-      try {
-        return await this._fetch('/extract', {
-          method: 'POST',
-          body: JSON.stringify({ conversation, store_results: true, source }),
-          timeout: TIMEOUTS.MEMORY_EXTRACT,
-        });
-      } catch (err) {
-        logger.warn({ err: err.message }, 'EVO X2 extraction failed, queuing');
-      }
-    }
-    this._queueItem('text', { type: 'extract', conversation, source });
-    return { extracted: [], queued: true };
+    throw new Error('legacy_extraction_retired_use_grounded_learning_worker');
   }
 
   /**
@@ -568,7 +557,9 @@ class MemoryClient {
         } else if (data.type === 'note') {
           await this._fetch('/note', { method: 'POST', body: JSON.stringify({ text: data.text, source: data.source }), timeout: TIMEOUTS.MEMORY_NOTE });
         } else if (data.type === 'extract') {
-          await this._fetch('/extract', { method: 'POST', body: JSON.stringify({ conversation: data.conversation, store_results: true, source: data.source }), timeout: TIMEOUTS.MEMORY_EXTRACT });
+          // Preserve historical source material for supervised reprocessing; never promote old guesses.
+          logger.warn({ file }, 'legacy extraction retained for grounded reprocessing');
+          continue;
         }
         unlinkSync(filepath);
         processed++;
@@ -616,7 +607,7 @@ const client = new MemoryClient({
 
 // --- Facade exports (identical API — zero breaking changes) ---
 export { MemoryClient };
-export const checkEvoHealth = () => client.checkHealth();
+export const checkEvoHealth = (options = {}) => client.checkHealth(options);
 export const getLastHealthData = () => client.getLastHealthData();
 export const isEvoOnline = () => client.isOnline();
 export const getEvoStatus = () => client.getStatus();

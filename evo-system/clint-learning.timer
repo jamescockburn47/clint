@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Clint learning independently of WhatsApp
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 Europe/London
+Persistent=true
+Unit=clint-learning.service
+
+[Install]
+WantedBy=timers.target

@@ -172,14 +172,13 @@ describe('overnight/probe-drift.runDriftChecks', () => {
     assert.ok(resultWorse[0]!.weight > resultBetter[0]!.weight);
   });
 
-  it('skips exchanges where replay returns null', async () => {
-    const result = await runDriftChecks({
+  it('reports unavailable replay as failure rather than absence of drift', async () => {
+    await assert.rejects(runDriftChecks({
       exchanges: makeExchanges(2),
       replay: makeReplay(null),
       grader: makeGrader('worse'),
       date: '2026-04-11',
-    });
-    assert.deepEqual(result, []);
+    }), /probe_replay_unavailable/);
   });
 
   it('records diff summary reflecting the text change', async () => {

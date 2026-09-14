@@ -1,121 +1,77 @@
-// src/overnight/consolidate-extract.ts — drives yesterday's conversation logs
-// through the EVO memory service /extract endpoint and collects candidates.
-// Spec §4.1 consolidate stage, inputs.
-//
-// Dependency-injected EVO client so tests can mock without esmock.
-
+/** Read immutable conversation lines and resolve every model selection against them. */
 import { readFile, readdir } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { MemoryCandidate } from './consolidate-validate.js';
+import { readSourceLine, groundCandidate, type SourceMessage } from './grounded-memory.js';
 
-/** Minimum assembled-conversation length before we bother calling EVO. */
-export const MIN_CONVERSATION_CHARS = 50;
-/** Minimum number of log lines in a file before we process it. */
-export const MIN_LOG_LINES = 2;
+export const MIN_CONVERSATION_CHARS = 1;
+export const MIN_LOG_LINES = 1;
+const BATCH_CHARS = 12000;
 
 export interface ExtractClient {
-  /**
-   * Call EVO's memory service /extract endpoint with `store_results: false`.
-   * Returns the candidate list without persisting anything.
-   */
-  extractCandidates(
-    conversation: string,
-    source: string,
-  ): Promise<{ candidates: unknown[] }>;
+  extractCandidates(conversation: string, source: string): Promise<{ candidates: unknown[] }>;
 }
-
-export interface ConsolidateExtractorOptions {
-  client: ExtractClient;
-  logDir: string;
-}
-
-export interface ExtractError {
-  file: string;
-  reason: string;
-}
-
+export interface ConsolidateExtractorOptions { client: ExtractClient; logDir: string }
+export interface ExtractError { file: string; reason: string }
 export interface ExtractResult {
   filesProcessed: number;
   candidates: MemoryCandidate[];
   errors: ExtractError[];
-}
-
-interface LogMessage {
-  sender?: string;
-  text?: string;
-  isBot?: boolean;
+  rejected: number;
 }
 
 export class ConsolidateExtractor {
   constructor(private readonly opts: ConsolidateExtractorOptions) {}
 
-  /**
-   * Extract candidates from all log files whose name begins with the given date.
-   * Files that can't be parsed or whose content is trivially short are skipped
-   * and counted in `errors` (for parse failures) or silently ignored (for
-   * too-short conversations).
-   */
+  /** Process bounded source batches. Failure differs from an explicitly empty result. */
   async extractForDate(date: string): Promise<ExtractResult> {
-    const result: ExtractResult = { filesProcessed: 0, candidates: [], errors: [] };
-    if (!existsSync(this.opts.logDir)) return result;
-
-    const all = await readdir(this.opts.logDir);
-    const matching = all.filter((f) => f.startsWith(date) && f.endsWith('.jsonl'));
-
-    for (const file of matching) {
+    const result: ExtractResult = { filesProcessed: 0, candidates: [], errors: [], rejected: 0 };
+    let files: string[];
+    try { files = await readdir(this.opts.logDir); }
+    catch (err) {
+      result.errors.push({ file: date, reason: (err as NodeJS.ErrnoException).code ?? 'log_read_failed' });
+      return result;
+    }
+    const seen = new Set<string>();
+    for (const file of files.filter(f => f.startsWith(date) && f.endsWith('.jsonl')).sort()) {
       try {
-        const content = await readFile(join(this.opts.logDir, file), 'utf8');
-        const lines = content.trim().split('\n').filter(Boolean);
-        if (lines.length < MIN_LOG_LINES) continue;
-
-        const messages = this.parseLines(lines, file);
-        if (messages.length < MIN_LOG_LINES) continue;
-
-        const convText = this.renderConversation(messages);
-        if (convText.length < MIN_CONVERSATION_CHARS) continue;
-
-        const source = `conversation_${date}_${file.replace(/\.jsonl$/, '')}`;
-        try {
-          const { candidates } = await this.opts.client.extractCandidates(convText, source);
-          for (const c of candidates) {
-            result.candidates.push(c as MemoryCandidate);
-          }
-          result.filesProcessed += 1;
-        } catch (err) {
-          result.errors.push({ file, reason: (err as Error).message });
+        const lines = (await readFile(join(this.opts.logDir, file), 'utf8')).split('\n');
+        const messages: SourceMessage[] = [];
+        for (let i = 0; i < lines.length; i++) {
+          const raw = lines[i]!;
+          if (!raw.trim()) continue;
+          messages.push(readSourceLine(raw, file, i + 1));
         }
+        const batches: SourceMessage[][] = [];
+        let batch: SourceMessage[] = [];
+        let chars = 0;
+        for (const m of messages) {
+          if (m.isBot || !m.text.trim()) continue;
+          if (m.text.length > 2000) { result.rejected++; continue; }
+          const size = JSON.stringify(m).length;
+          if (chars + size > BATCH_CHARS && batch.length) { batches.push(batch); batch = []; chars = 0; }
+          batch.push(m); chars += size;
+        }
+        if (batch.length) batches.push(batch);
+        for (const records of batches) {
+          const response = await this.opts.client.extractCandidates(JSON.stringify(records), file);
+          if (!response || !Array.isArray(response.candidates)) throw new Error('extractor_invalid_contract');
+          for (const raw of response.candidates) {
+            try {
+              const c = groundCandidate(raw, records);
+              const key = c.sources[0]!.hash;
+              if (!seen.has(key)) { result.candidates.push(c); seen.add(key); }
+            } catch (err) {
+              result.rejected++;
+              result.errors.push({ file, reason: (err as Error).message });
+            }
+          }
+        }
+        result.filesProcessed++;
       } catch (err) {
         result.errors.push({ file, reason: (err as Error).message });
       }
     }
-
     return result;
-  }
-
-  private parseLines(lines: string[], file: string): LogMessage[] {
-    const messages: LogMessage[] = [];
-    let parseFailed = false;
-    for (const line of lines) {
-      try {
-        messages.push(JSON.parse(line) as LogMessage);
-      } catch {
-        parseFailed = true;
-      }
-    }
-    // If every single line failed to parse, treat the file as unreadable.
-    if (parseFailed && messages.length === 0) {
-      throw new Error(`every line in ${file} failed to parse as JSON`);
-    }
-    return messages;
-  }
-
-  private renderConversation(messages: LogMessage[]): string {
-    return messages
-      .map((m) => {
-        const name = m.sender ?? (m.isBot ? 'Clint' : 'User');
-        return `${name}: ${m.text ?? ''}`;
-      })
-      .join('\n');
   }
 }

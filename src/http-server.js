@@ -7,6 +7,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 import config from './config.js';
+import { isAuthorized } from './http-auth.ts';
 import logger from './logger.js';
 import { addSSEClient, broadcastSSE } from './sse.js';
 import { getRecentMessages, getAllRecentMessages } from './buffer.js';
@@ -38,11 +39,7 @@ import { triggerForgeNow } from './overnight/forge-now-http.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function checkAuth(req) {
-  if (!config.dashboardToken) return true;
-  const url = new URL(req.url, 'http://localhost');
-  const t = url.searchParams.get('token');
-  const h = req.headers.authorization;
-  return (t === config.dashboardToken) || (h?.startsWith('Bearer ') && h.slice(7) === config.dashboardToken);
+  return isAuthorized(req, config.dashboardToken);
 }
 
 function readBody(req) {
@@ -66,15 +63,14 @@ export function startHttpServer(port, deps) {
     // No auth: it has to work when the bot is otherwise unreachable, and
     // it returns nothing sensitive. ---
     if (path === '/health') {
-      return json(res, 200, { status: 'ok' });
+      const channel = deps.getChannelState?.() ?? (getActiveSock() ? 'connected' : 'starting');
+      return json(res, channel === 'connected' || channel === 'disabled' ? 200 : 503,
+        { status: channel === 'connected' || channel === 'disabled' ? 'ok' : 'degraded', channel });
     }
 
-    // --- Bot Council debate endpoint (no dashboard-token auth — council sends
-    // its own bearer token; verification of that belongs in a future phase
-    // once LQC exposes a registration secret. For now the endpoint is
-    // idempotent and side-effect-free beyond tool calls, which are themselves
-    // read-only in this context). ---
+    // Council callers must supply the configured bearer credential.
     if (req.method === 'POST' && path === '/debate') {
+      if (!checkAuth(req)) return json(res, 401, { error: 'Unauthorized' });
       try {
         const body = JSON.parse(await readBody(req));
         const result = await handleDebate(body);
@@ -94,6 +90,20 @@ export function startHttpServer(port, deps) {
         json(res, 200, { ok: true });
       } catch (err) { json(res, 500, { error: err.message }); }
       return;
+    }
+
+    // --- Steads notifications — the game ledgers POST events here (HMAC via
+    // STEADS_WEBHOOK_SECRET); notable ones DM James, all feed the daily digest.
+    if (req.method === 'POST' && path === '/api/steads-event') {
+      const { handleSteadsEvent } = await import('./steads/webhook.js');
+      const rawBody = await readBody(req);
+      const sig = req.headers['x-steads-signature'];
+      const out = await handleSteadsEvent({
+        rawBody,
+        signature: typeof sig === 'string' ? sig : String(sig || ''),
+        sendProactiveMessage,
+      });
+      return json(res, out.status, out.body);
     }
 
     if (req.method === 'POST' && path === '/api/moorstead-event') {
@@ -386,6 +396,16 @@ export function startHttpServer(port, deps) {
         error: 'retired',
         message: 'Use /api/morning-report/:date instead (spec §4.3).',
       });
+    }
+
+    if (path.startsWith('/api/learning/')) {
+      if (!checkAuth(req)) return json(res, 401, { error: 'Unauthorized' });
+      const date = path.slice('/api/learning/'.length);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json(res, 400, { error: 'Invalid date' });
+      try {
+        const { readLearningStatus } = await import('./overnight/learning-status.js');
+        return json(res, 200, await readLearningStatus(join(__dirname, '..', 'data', 'overnight'), date));
+      } catch { return json(res, 500, { error: 'Unable to read learning state' }); }
     }
 
     // --- Morning report JSON (Phase 3, structured + staleness-guarded) ---
@@ -720,7 +740,7 @@ export function startHttpServer(port, deps) {
 
   server.listen(port, () => logger.info({ port }, 'HTTP server started'));
 
-  startWidgetRefresh();
+  (deps.startWidgetRefresh ?? startWidgetRefresh)();
 
   return server;
 }

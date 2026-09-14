@@ -1,4 +1,6 @@
 import { getGroupConfig, getGroupLabel } from './group-registry.js';
+import { isGroupConversation } from './conversation-context.js';
+import { permitsTool } from './conversation-tools.js';
 
 // Dev-group JID is read lazily via `process.env` instead of the
 // frozen `config` singleton. The existing group-tool-policy test boots
@@ -16,7 +18,7 @@ function devGroupJid() {
  */
 function isLqcouncilBoundChat(chatJid) {
   if (!chatJid) return false;
-  if (!chatJid.endsWith('@g.us')) return false;
+  if (!isGroupConversation(chatJid)) return false;
   const dev = devGroupJid();
   if (dev && chatJid === dev) return true;
   const cfg = getGroupConfig(chatJid);
@@ -67,7 +69,7 @@ function isLqcTool(name) {
  *  Caller wraps in the existing SOVREN filter; this runs first so the
  *  restrictions compose. */
 function stripLqcToolsForOtherChats(chatJid, tools) {
-  const isGroup = chatJid && chatJid.endsWith('@g.us');
+  const isGroup = isGroupConversation(chatJid);
   if (isGroup && isLqcouncilBoundChat(chatJid)) return tools;
   // Not a group (owner DM) — always allowed. The message processor
   // already restricts DM visibility to registered users.
@@ -77,8 +79,8 @@ function stripLqcToolsForOtherChats(chatJid, tools) {
 
 export function filterToolsForChat(chatJid, tools) {
   // Strip LQC tools first (applies to any group that's not the dev JID).
-  const base = stripLqcToolsForOtherChats(chatJid, tools);
-  if (!chatJid || !chatJid.endsWith('@g.us')) return base;
+  const base = stripLqcToolsForOtherChats(chatJid, tools).filter(tool => permitsTool(tool.name));
+  if (!isGroupConversation(chatJid)) return base;
   const groupLabel = (getGroupLabel(chatJid) || '').trim().toLowerCase();
   const groupConfig = getGroupConfig(chatJid);
   if (!SOVREN_LABELS.has(groupLabel) || !groupConfig?.allowedProjects?.includes('sovren')) {

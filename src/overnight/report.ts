@@ -17,6 +17,7 @@ import type { StageContext, StageFn } from './runner.js';
 import { queryEvents } from './events.js';
 import { isoWeekOf, queryObservations } from './probe-observations.js';
 import { buildMorningReport, type MorningReport } from './morning-report.js';
+import { loadReportStyle, styleReport } from './report-style.js';
 import type { OvernightResearchReport } from '../tasks/overnight-research.js';
 
 export interface ReportStageDeps {
@@ -107,7 +108,8 @@ export function makeReportStage(deps: ReportStageDeps): StageFn {
       repoRoot: ctx.repoRoot,
       researchReport: await loadResearchReport(deps.overnightDir, ctx.date),
     });
-    const { text, ...report } = built;
+    const { text: rawText, ...report } = built;
+    const text = styleReport(rawText, await loadReportStyle(resolve(deps.overnightDir, '..')));
 
     // --- 3. Persist ----------------------------------------------------
     const jsonPath = join(deps.overnightDir, `report-${ctx.date}.json`);
@@ -169,6 +171,7 @@ export async function buildAndRenderReport(opts: {
     repoRoot,
     researchReport: await loadResearchReport(opts.overnightDir, opts.date),
   });
-  const { text, ...report } = built;
+  const { text: rawText, ...report } = built;
+  const text = styleReport(rawText, await loadReportStyle(resolve(opts.overnightDir, '..')));
   return { report, text };
 }

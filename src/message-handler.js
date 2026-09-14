@@ -12,6 +12,7 @@ import { logInteraction, handleReaction, isCorrection, logFeedback } from './int
 import { isMuteTrigger, activateMute, recordGroupResponse } from './engagement.js';
 import { scanMessage } from './lquorum-rag.js';
 import { logConversation } from './memory.js';
+import { logIncomingConversation } from './conversation-logger.js';
 import { observeMember } from './group-members.js';
 import { getDocumentInfo, processDocument } from './document-handler.js';
 // Phase 5: evolution-gate retired. The old DM-approval flow is replaced
@@ -23,7 +24,6 @@ import { filterResponse, getBlockedResponse } from './output-filter.js';
 import { detectGroupMode, detectGroupModeExit, detectTopicSelection, runTopicRetrieval, executeGroupMode, buildExecutionPrompt, buildAristotlePrompt } from './group-modes.js';
 import { clearPendingAction, getPendingAction } from './pending-action.js';
 import { getRecentGroupMessages, formatTranscript } from './topic-scan.js';
-import { queueGroupMessage } from './group-message-processor.js';
 import { runSkillPostProcessors } from './skill-registry.js';
 import { getDefaultFollowUpWindowMs } from './participation/engagement-service.js';
 import { openFollowUpWindow, getConversationState, recordParticipantTurn } from './participation/conversation-state.js';
@@ -226,11 +226,9 @@ export async function handleIncomingMessage(sock, message, botJid) {
       logger.info({ chatJid, senderJid, turnIndex: followUpParticipation.followUpTurnIndex }, 'follow-up window continuation — bypassing mention gate');
     }
 
-    // Log ALL group messages before respond gate (dream mode needs everything)
-    if (isGroup && config.evoMemoryEnabled) {
-      try { logConversation(chatJid, [{ senderName, senderJid, text, isBot: false }]); } catch (err) { logger.warn({ err: err.message }, 'conversation log failed'); }
-      // Queue for real-time fact extraction via 30B model
-      queueGroupMessage(chatJid, senderName, text);
+    // Preserve source identity before the response gate. Own echoes are never human evidence.
+    if (config.evoMemoryEnabled && (isGroup || senderJid === config.ownerJid || senderJid === config.ownerLid)) {
+      logIncomingConversation(message, { chatJid, senderName, senderJid, text });
     }
 
     if (!trigger.respond) return;

@@ -60,7 +60,7 @@ export function shouldRespond({ text, hasImage, isFromMe, isGroup, senderJid, bo
 
   // 2. Prefix command (e.g. "clawd ..." or "clawdsec ...")
   for (const name of BOT_NAMES) {
-    if (lowerText.startsWith(name + ' ') || lowerText === name) {
+    if (lowerText === name || (lowerText.startsWith(name) && /^[\s,.:;!?–—-]/.test(lowerText.slice(name.length)))) {
       return { respond: true, mode: 'direct', secretaryMode: SECRETARY_NAMES.includes(name) };
     }
   }

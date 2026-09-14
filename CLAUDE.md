@@ -1,3 +1,7 @@
+> Historical document. September 2026 behavior and operational policy are defined in
+> [README](README.md), [AGENTS.md](AGENTS.md) and [the overhaul report](docs/clint-overhaul-2026-09-13.md).
+> Earlier AGI, model, deployment and autonomous source-change claims are not current guarantees.
+
 # CLAUDE.md — Clawdbot (Clawd Monet)
 
 > **READ THIS FIRST.** Every session must start by reading this file AND `architecture.md`. Do not skip.

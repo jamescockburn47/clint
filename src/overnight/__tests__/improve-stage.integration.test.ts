@@ -18,7 +18,7 @@ const FINAL_CANDIDATES = `[
     "id": "c1",
     "title": "Add local telemetry smoke test",
     "category": "quality",
-    "scope": "test/local-agent-smoke.test.js",
+    "scope": "src/request-id.js",
     "evidence_refs": ["obs:telemetry-a", "obs:telemetry-b"],
     "predicted_benefit": "catches local Qwen observability regressions before deploy"
   }
@@ -30,7 +30,7 @@ function makeImplementResult(overrides: Partial<ImplementResult> = {}): Implemen
     reason: 'all artefacts consistent',
     artifacts: {
       gitLog: 'abc123 feat: add local telemetry smoke test',
-      gitDiff: ' test/local-agent-smoke.test.js | 20 ++++++++++++++++++++\n',
+      gitDiff: ' src/request-id.js | 20 ++++++++++++++++++++\n',
       testStdout: 'all tests passed',
       testExitCode: 0,
       claudeStdout: 'implemented',
@@ -93,7 +93,7 @@ async function seedImproveObservations(overnightDir: string): Promise<void> {
       title: 'Add local telemetry smoke test',
       category: 'quality',
       predicted_benefit: 'catch local Qwen observability regressions',
-      scope: 'test/local-agent-smoke.test.js',
+      scope: 'src/request-id.js',
       rough_cost: 'small',
       evidence_refs: ['obs:telemetry-a', 'obs:telemetry-b'],
       weight: 4,
@@ -118,7 +118,7 @@ async function seedImproveObservations(overnightDir: string): Promise<void> {
       title: 'Improve recall trajectory smoke test',
       category: 'quality',
       predicted_benefit: 'memory_search drift caught earlier',
-      scope: 'test/recall-trajectory.test.js',
+      scope: 'src/reasoning-trace.js',
       rough_cost: 'small',
       evidence_refs: ['obs:recall-a', 'obs:recall-b'],
       weight: 3,
@@ -280,7 +280,7 @@ describe('overnight/improve full-stage orchestration', () => {
 
     const events = await runImprove(deps, {
       runImplement: async () => makeImplementResult(),
-      sampleHistoricalExchanges: async () => [],
+      sampleHistoricalExchanges: async () => [{ userInput: "fixture", botResponse: "baseline", original_timestamp: RUN_DATE, inputHash: "sha256:fixture" }],
       runDeploy: async () => makeDeployResult({
         verdict: 'ci_failed',
         tier: 'B',

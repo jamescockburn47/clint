@@ -1,5 +1,4 @@
 /// <reference types="node" />
-// @ts-expect-error - logger is .js without declarations
 import logger from '../logger.js';
 import { parseXlsx } from './xlsx-parser.js';
 import { extractMethodology } from './methodology-extractor.js';

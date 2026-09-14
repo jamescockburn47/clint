@@ -1,0 +1,17 @@
+[Unit]
+Description=Clint source-grounded nightly learning and improvement review
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=james
+WorkingDirectory=/home/james/clawdbot
+ExecStart=/home/james/clawdbot/node_modules/.bin/tsx --env-file=.env src/overnight/learning-cli.ts
+TimeoutStartSec=45min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/james/clawdbot/data
+UMask=0077

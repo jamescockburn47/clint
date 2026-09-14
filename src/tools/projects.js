@@ -1,10 +1,12 @@
 // src/tools/projects.js — Project management tools for persistent project definitions
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { readdirSync, statSync } from 'node:fs';
-import { extname, isAbsolute, join, normalize, resolve } from 'node:path';
+import { extname, isAbsolute, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import logger from '../logger.js';
 import { runtimePath } from '../overnight/paths.js';
+import { permitsProject } from '../conversation-context.js';
+import { resolveProjectFile } from '../project-file-boundary.js';
 
 // Post Phase 0 spec §6.1 P1: runtime state lives in data/runtime/
 const PROJECTS_FILE = runtimePath('projects.json');
@@ -44,7 +46,7 @@ function getMergedProjects() {
       merged.push(fallbackProject);
     }
   }
-  return merged;
+  return merged.filter(project => permitsProject(project.id));
 }
 
 function saveProjects(projects) {
@@ -266,13 +268,7 @@ function resolveProjectRoot(project) {
 }
 
 function ensurePathWithinRoot(root, relPath) {
-  const safeRel = normalize(String(relPath || '').replace(/^[\\/]+/, ''));
-  const absolute = resolve(root, safeRel);
-  const normalizedRoot = resolve(root);
-  if (!absolute.startsWith(normalizedRoot)) {
-    throw new Error('Invalid path: outside project root.');
-  }
-  return absolute;
+  return resolveProjectFile(root, relPath);
 }
 
 export async function projectListFiles({ id, subpath = '.', limit = DEFAULT_LIST_LIMIT }) {

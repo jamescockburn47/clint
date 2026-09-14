@@ -69,7 +69,7 @@ export interface RollingReplayOptions {
 }
 
 export interface RollingReplayResult {
-  verdict: 'pass' | 'pass_with_warning' | 'reject' | 'skipped';
+  verdict: 'pass' | 'pass_with_warning' | 'reject' | 'skipped' | 'blocked';
   betterCount: number;
   worseCount: number;
   neutralCount: number;
@@ -77,7 +77,7 @@ export interface RollingReplayResult {
   warning?: string;
   perSampleResults: Array<{
     sample: StratifiedSample;
-    judged: 'better' | 'worse' | 'neutral';
+    judged: 'better' | 'worse' | 'neutral' | 'unverifiable';
     reason: string;
   }>;
 }
@@ -85,31 +85,6 @@ export interface RollingReplayResult {
 function hasSensitiveTerm(input: string, terms: readonly string[]): boolean {
   const lower = input.toLowerCase();
   return terms.some((term) => lower.includes(term.toLowerCase()));
-}
-
-/**
- * Simple Levenshtein ratio on short strings (up to ~2000 chars). Returns
- * similarity in [0..1]. O(nm) time, fine for typical bot responses.
- */
-function levenshteinRatio(a: string, b: string): number {
-  if (a === b) return 1;
-  if (a.length === 0 || b.length === 0) return 0;
-  const m = a.length;
-  const n = b.length;
-  const prev = new Array<number>(n + 1);
-  const curr = new Array<number>(n + 1);
-  for (let j = 0; j <= n; j++) prev[j] = j;
-  for (let i = 1; i <= m; i++) {
-    curr[0] = i;
-    for (let j = 1; j <= n; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      curr[j] = Math.min(prev[j]! + 1, curr[j - 1]! + 1, prev[j - 1]! + cost);
-    }
-    for (let j = 0; j <= n; j++) prev[j] = curr[j]!;
-  }
-  const distance = prev[n]!;
-  const maxLen = Math.max(m, n);
-  return 1 - distance / maxLen;
 }
 
 /**
@@ -176,26 +151,31 @@ export async function runRollingReplay(
   let worseCount = 0;
   let neutralCount = 0;
   const worseExchanges: StratifiedSample[] = [];
+  let unavailable = 0;
 
   for (const sample of opts.samples) {
-    const [mainResp, wtResp] = await Promise.all([
+    let mainResp: string | null;
+    let wtResp: string | null;
+    try { [mainResp, wtResp] = await Promise.all([
       opts.replayPair.replayAgainstMain(sample.userInput),
       opts.replayPair.replayAgainstWorktree(sample.userInput),
-    ]);
+    ]); } catch {
+      mainResp = null; wtResp = null;
+    }
 
-    if (mainResp === null || wtResp === null) {
+    if (!mainResp?.trim() || !wtResp?.trim()) {
       // Missing replay → count as neutral, don't grade
       perSample.push({
         sample,
-        judged: 'neutral',
+        judged: 'unverifiable',
         reason: 'replay unavailable',
       });
-      neutralCount++;
+      unavailable++;
       continue;
     }
 
     // Near-identical shortcut
-    if (levenshteinRatio(mainResp, wtResp) > 0.9) {
+    if (mainResp === wtResp) {
       perSample.push({
         sample,
         judged: 'neutral',
@@ -205,7 +185,15 @@ export async function runRollingReplay(
       continue;
     }
 
-    const verdict = await opts.grader.grade(mainResp, wtResp, sample.userInput);
+    let verdict;
+    try {
+      verdict = await opts.grader.grade(mainResp, wtResp, sample.userInput);
+      if (!['better', 'worse', 'neutral'].includes(verdict.judged) || !verdict.reason) throw new Error('invalid grade');
+    } catch {
+      unavailable++;
+      perSample.push({ sample, judged: 'unverifiable', reason: 'grader unavailable or invalid' });
+      continue;
+    }
     perSample.push({ sample, judged: verdict.judged, reason: verdict.reason });
 
     switch (verdict.judged) {
@@ -227,6 +215,9 @@ export async function runRollingReplay(
   let warning: string | undefined;
   if (worseCount > 0) {
     verdict = 'reject';
+  } else if (unavailable > 0 || perSample.length === 0) {
+    verdict = 'blocked';
+    warning = 'replay evidence incomplete';
   } else if (betterCount >= 2) {
     verdict = 'pass';
   } else if (neutralCount === perSample.length && perSample.length > 0) {

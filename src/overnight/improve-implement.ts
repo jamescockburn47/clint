@@ -101,7 +101,7 @@ function buildPrompt(candidate: FinalCandidate): string {
 }
 
 /** Default exec wrapper with a generous maxBuffer. */
-const defaultExec: ImplementOptions['execFn'] = async (cmd, opts) => {
+const defaultExec: NonNullable<ImplementOptions['execFn']> = async (cmd, opts) => {
   const { stdout, stderr } = await execAsync(cmd, {
     cwd: opts.cwd,
     maxBuffer: 10 * 1024 * 1024,
@@ -224,28 +224,19 @@ export async function runImplementStage(
     {
       repoRoot: opts.repoRoot,
       baseRef: opts.worktreeOpts?.baseRef ?? 'main',
+      retain: true,
     },
     async (handle) => {
       const worktreeDir = handle.path;
       // Write the prompt to a file inside the worktree for debugging/audit
       await writeFile(join(worktreeDir, '.improve-prompt.md'), prompt, 'utf8');
 
-      const claudeResult = await Promise.race([
-        opts.client.runSession({
+      const claudeResult = await opts.client.runSession({
           worktreeDir,
           prompt,
           timeoutMs: IMPLEMENT_TIMEOUT_MS,
-        }),
-        new Promise<{ stdout: string; stderr: string; exitCode: number }>((_, reject) =>
-          setTimeout(
-            () =>
-              reject(
-                new Error(`claude session exceeded ${IMPLEMENT_TIMEOUT_MS / 1000}s wall-clock`),
-              ),
-            IMPLEMENT_TIMEOUT_MS,
-          ),
-        ),
-      ]);
+        });
+      if (claudeResult.exitCode !== 0) throw new Error(`implementation process exited ${claudeResult.exitCode}`);
 
       captured = await captureArtifacts(worktreeDir, claudeResult, execFn);
       // Override the branch with the real one from the worktree handle

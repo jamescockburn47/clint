@@ -73,7 +73,7 @@ describe('overnight/worktree', () => {
   });
 
   describe('janitorSweep', () => {
-    it('removes orphaned worktrees from .worktrees/', async () => {
+    it('preserves worktrees whose ownership and disposal have not been established', async () => {
       // Manually create a stale worktree that never got cleaned up.
       // Use a dedicated branch so it doesn't collide with main (which is
       // already checked out in the repo root).
@@ -83,13 +83,26 @@ describe('overnight/worktree', () => {
       assert.ok(existsSync(staleDir));
 
       const swept = await janitorSweep({ repoRoot });
-      assert.ok(swept >= 1, 'should have swept at least one worktree');
-      assert.ok(!existsSync(staleDir));
+      assert.equal(swept, 0);
+      assert.ok(existsSync(staleDir));
     });
 
     it('returns 0 when there are no orphans', async () => {
       const swept = await janitorSweep({ repoRoot });
       assert.equal(swept, 0);
     });
+  });
+
+  it('retains successful candidate commits and workspace until review', async () => {
+    let candidatePath = '', branch = '';
+    await withWorktree({ repoRoot, baseRef: 'main', retain: true }, async wt => {
+      candidatePath = wt.path; branch = wt.branch;
+      writeFileSync(join(wt.path, 'file.txt'), 'reviewable improvement\n');
+      execSync('git add file.txt', { cwd: wt.path });
+      execSync('git commit -m candidate', { cwd: wt.path });
+    });
+    assert.ok(existsSync(candidatePath));
+    assert.match(execSync(`git show ${branch}:file.txt`, { cwd: repoRoot }).toString(), /reviewable improvement/);
+    assert.equal(readFileSync(join(repoRoot, 'file.txt'), 'utf8'), 'initial\n');
   });
 });

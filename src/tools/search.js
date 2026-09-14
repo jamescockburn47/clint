@@ -1,16 +1,22 @@
 import config from '../config.js';
 import logger from '../logger.js';
+import { currentConversation } from '../conversation-context.js';
+import { fetchPublicText } from '../public-web-fetch.js';
 
 const MAX_FETCH_CHARS = 8000;
 
 export async function webFetch({ url }) {
   if (!url) return 'URL is required.';
-
+  let timeout;
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+    timeout = setTimeout(() => controller.abort(), 15000);
 
-    const res = await fetch(url, {
+    const publicResult = currentConversation() ? await fetchPublicText(url) : null;
+    const res = publicResult ? { ok: publicResult.status >= 200 && publicResult.status < 300,
+      status: publicResult.status, headers: { get: () => publicResult.contentType },
+      text: async () => publicResult.text, json: async () => JSON.parse(publicResult.text),
+    } : await fetch(url, {
       signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; Clawdbot/1.0)',
@@ -88,12 +94,12 @@ export async function webFetch({ url }) {
       text = text.slice(0, MAX_FETCH_CHARS) + '\n[...truncated]';
     }
 
-    logger.info({ url, chars: text.length }, 'web_fetch complete');
+    logger.info({ chars: text.length }, 'web_fetch complete');
     return text || 'Page returned empty content.';
   } catch (err) {
     if (err.name === 'AbortError') return 'URL fetch timed out (15s).';
-    return `Web fetch error: ${err.message}`;
-  }
+    return currentConversation() ? 'Web fetch failed or destination is not permitted.' : `Web fetch error: ${err.message}`;
+  } finally { clearTimeout(timeout); }
 }
 
 const SEARCH_TIMEOUT_MS = 10_000;
@@ -149,8 +155,8 @@ async function searchTavily(query, n) {
     });
 
     if (!res.ok) {
-      const bodyText = await res.text().catch(() => '');
-      logger.warn({ status: res.status, body: bodyText.slice(0, 200) }, 'tavily search non-2xx');
+      await res.body?.cancel();
+      logger.warn({ status: res.status }, 'tavily search non-2xx');
       if (TAVILY_COOLDOWN_STATUSES.has(res.status)) {
         tavilyCooldownUntil = Date.now() + TAVILY_COOLDOWN_MS;
       }
@@ -161,13 +167,13 @@ async function searchTavily(query, n) {
     const results = (data?.results || []).slice(0, n);
     if (results.length === 0) return null;
 
-    logger.info({ query, count: results.length }, 'web search via Tavily');
+    logger.info({ count: results.length }, 'web search via Tavily');
     return formatResults(results, query);
   } catch (err) {
     if (err.name === 'AbortError') {
-      logger.warn({ query }, 'tavily search timed out');
+      logger.warn('tavily search timed out');
     } else {
-      logger.warn({ err: err.message, query }, 'tavily search error');
+      logger.warn('tavily search error');
     }
     return null;
   } finally {
@@ -199,19 +205,18 @@ async function searchSearxng(query, n) {
     const results = (data?.results || []).slice(0, n);
     if (results.length === 0) {
       logger.warn({
-        query,
         unresponsive: data?.unresponsive_engines?.length || 0,
       }, 'searxng returned zero results');
       return null;
     }
 
-    logger.info({ query, count: results.length }, 'web search via SearXNG');
+    logger.info({ count: results.length }, 'web search via SearXNG');
     return formatResults(results, query);
   } catch (err) {
     if (err.name === 'AbortError') {
-      logger.warn({ query }, 'searxng timed out');
+      logger.warn('searxng timed out');
     } else {
-      logger.warn({ err: err.message, query }, 'searxng error');
+      logger.warn('searxng error');
     }
     return null;
   } finally {

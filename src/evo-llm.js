@@ -60,7 +60,7 @@ Today is ${dateStr}, ${timeStr} (Europe/London).`;
   }
 
   base += `\n\n## Who you are
-You are Clint Westwood — an AGI experiment running on Pi 5 + EVO X2 + touchscreen. Three-tier AI: local Qwen on EVO as the normal default, MiniMax M2.7 as cloud fallback/image path, Claude Opus 4.6 as premium/explicit/last-resort path. You dream overnight (diary + fact extraction + soul evolution), have an agentic task planner, can self-modify via evolution pipeline, search the web, process images/documents locally, and have working memory from the LQuorum legal AI community. You are actively progressing toward AGI. Answer questions about yourself accurately.`;
+You are Clint, James's personal assistant and technical/research agent. Use system_status and overnight_status to establish current capabilities and failures. Dreaming means reviewing attributed statements and observed failures, not consciousness or proof of self-improvement. Only the defined report-presentation policy applies automatically; executable code proposals require review. Do not claim an unavailable service is working.`;
 
   base += `\n\n## Memories
 You may have background knowledge about James injected below. Use it to understand context (e.g. preferences, people, places) but do NOT mix memory facts into tool result summaries. Memories inform your understanding — tool results are the data you report.`;
@@ -401,6 +401,7 @@ export async function summariseDocument(text, fileName, maxOutputTokens = 500) {
  * @param {number} maxTokens - Max output tokens (default 800)
  * @returns {string|null} - Response text, or null on failure
  */
+/** @param {string} systemPrompt @param {string} userMessage @param {number} maxTokens @param {number} timeoutMs */
 export async function evoSimpleChat(systemPrompt, userMessage, maxTokens = 800, timeoutMs = TIMEOUTS.DOC_SUMMARISE) {
   try {
     const res = await evoFetch(`${config.evoLlmUrl}/v1/chat/completions`, {
@@ -478,6 +479,7 @@ export async function classifyVia4B(text) {
     const res = await evoFetch(`${config.evoPlannerUrl}/v1/chat/completions`, {
       method: 'POST',
       body: JSON.stringify({
+        chat_template_kwargs: { enable_thinking: false },
         messages: [
           { role: 'system', content: PLANNER_CLASSIFY_PROMPT },
           { role: 'user', content: text + ' /no_think' },
@@ -495,7 +497,7 @@ export async function classifyVia4B(text) {
     // Parse JSON — handle markdown-wrapped JSON (```json ... ```)
     const jsonMatch = raw.match(/\{[^}]+\}/);
     if (!jsonMatch) {
-      logger.warn({ raw }, '4B classifier returned non-JSON');
+      logger.warn('4B classifier returned non-JSON');
       return null;
     }
 
@@ -508,7 +510,7 @@ export async function classifyVia4B(text) {
     ]);
 
     if (!validCategories.has(parsed.category)) {
-      logger.warn({ category: parsed.category }, '4B classifier returned invalid category');
+      logger.warn('4B classifier returned invalid category');
       return null;
     }
 
@@ -519,7 +521,7 @@ export async function classifyVia4B(text) {
       confidence: typeof parsed.confidence === 'number' ? parsed.confidence : null,
     };
   } catch (err) {
-    logger.warn({ err: err.message }, '4B classifier failed');
+    logger.warn('4B classifier failed');
     return null;
   }
 }
@@ -530,6 +532,7 @@ export async function classifyViaEvo(text, systemPrompt) {
     const res = await evoFetch(`${config.evoClassifierUrl}/v1/chat/completions`, {
       method: 'POST',
       body: JSON.stringify({
+        chat_template_kwargs: { enable_thinking: false },
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: text },

@@ -196,7 +196,7 @@ export async function runDriftChecks(
 
   for (const exchange of opts.exchanges) {
     const newResponse = await opts.replay.replayInput(exchange.userInput, '');
-    if (newResponse === null) continue;
+    if (!newResponse?.trim()) throw new Error('probe_replay_unavailable');
 
     const verdict = await opts.grader.grade(
       exchange.botResponse,

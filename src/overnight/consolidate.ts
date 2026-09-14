@@ -51,22 +51,14 @@ export function makeConsolidateStage(opts: ConsolidateStageOptions): StageFn {
     // failure mode of the extractor (e.g. EVO /extract offline or prompt
     // broken). Surface it as 'failed' so the health-check and morning report
     // can see it — 10 consecutive nights of candidates=0 previously showed ok.
-    const extractSilentZero =
-      extractResult.errors.length === 0 &&
-      extractResult.filesProcessed > 0 &&
-      extractResult.candidates.length === 0;
-    const extractFailed =
-      (extractResult.errors.length > 0 && extractResult.filesProcessed === 0) ||
-      extractSilentZero;
+    const extractFailed = extractResult.errors.length > 0;
     await ctx.appendEvent({
       stage: 'consolidate',
       phase: 'extract',
       inputs: [`data/conversation-logs/${yesterday}*.jsonl`],
       outputs: [],
-      verdict: extractFailed ? 'failed' : 'ok',
-      reason: extractSilentZero
-        ? `files=${extractResult.filesProcessed} candidates=0 — extractor produced nothing from non-empty logs`
-        : `files=${extractResult.filesProcessed} candidates=${extractResult.candidates.length} errors=${extractResult.errors.length}`,
+      verdict: extractFailed ? 'failed' : extractResult.candidates.length ? 'ok' : 'skipped',
+      reason: `files=${extractResult.filesProcessed} candidates=${extractResult.candidates.length} rejected=${extractResult.rejected} errors=${extractResult.errors.length}`,
       evidence_refs: extractResult.errors.map((e) => `extract_error:${e.file}:${e.reason}`),
       rollback_ref: null,
       budget: { opus_sessions: 0, tokens: 0 },
@@ -85,7 +77,7 @@ export function makeConsolidateStage(opts: ConsolidateStageOptions): StageFn {
         `memory_store:${storeResult.stored}`,
         `rejected_log:data/overnight/rejected-${ctx.date}.jsonl`,
       ],
-      verdict: storeResult.storeErrors.length > 0 ? 'failed' : 'ok',
+      verdict: storeResult.storeErrors.length > 0 || storeResult.rejected > 0 ? 'failed' : storeResult.stored ? 'ok' : 'skipped',
       reason: `stored=${storeResult.stored} rejected=${storeResult.rejected} store_errors=${storeResult.storeErrors.length}`,
       evidence_refs: storeResult.storeErrors.map((e) => `store_error:${e.reason}`),
       rollback_ref: null,

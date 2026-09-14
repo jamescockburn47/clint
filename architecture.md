@@ -1,3 +1,7 @@
+> Historical document. September 2026 behavior and operational policy are defined in
+> [README](README.md), [AGENTS.md](AGENTS.md) and [the overhaul report](docs/clint-overhaul-2026-09-13.md).
+> Earlier AGI, model, deployment and autonomous source-change claims are not current guarantees.
+
 # Architecture — Clawdbot
 
 > See also: [Data Flows](docs/data-flows.md) | [API Reference](docs/api-reference.md) | [Deployment](docs/deployment.md) | [EVO X2 Reference](docs/evo-x2-reference.md)
