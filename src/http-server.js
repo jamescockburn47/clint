@@ -405,7 +405,10 @@ export function startHttpServer(port, deps) {
       try {
         const { readLearningStatus } = await import('./overnight/learning-status.js');
         return json(res, 200, await readLearningStatus(join(__dirname, '..', 'data', 'overnight'), date));
-      } catch { return json(res, 500, { error: 'Unable to read learning state' }); }
+      } catch (err) {
+        logger.warn({ err: err.message, date }, 'learning state read failed');
+        return json(res, 500, { error: 'Unable to read learning state' });
+      }
     }
 
     // --- Morning report JSON (Phase 3, structured + staleness-guarded) ---

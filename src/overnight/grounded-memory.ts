@@ -4,6 +4,8 @@ import type { MemoryCandidate, MemorySource } from './consolidate-validate.js';
 
 export const EXTRACTION_VERSION = 'clint-extractive-v2';
 export const MAX_STATEMENT_CHARS = 2000;
+/** Attribution is certain; the claim is not. Never let a recorded statement outrank verified memories. */
+export const UNVERIFIED_STATEMENT_CONFIDENCE = 0.5;
 const CATEGORIES = new Set(['preference', 'person', 'project', 'event', 'task', 'general', 'other']);
 
 export interface SourceMessage {
@@ -86,7 +88,7 @@ export function groundCandidate(raw: unknown, messages: SourceMessage[]): Memory
     timestamp: m.timestamp, chatJid: m.chatJid,
   };
   return {
-    text: m.text, category: c.category, confidence: 1, sources: [source],
+    text: m.text, category: c.category, confidence: UNVERIFIED_STATEMENT_CONFIDENCE, sources: [source],
     verification: 'source_verified', factual_status: 'unverified_statement',
     extraction_version: EXTRACTION_VERSION,
   };

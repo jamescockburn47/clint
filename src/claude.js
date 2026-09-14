@@ -509,7 +509,10 @@ class LLMService {
         };
       }
       const { response, provider, modelName, usedFallback } = toolLoopResult;
-      if (response.stop_reason !== 'end_turn') throw new Error('incomplete_model_response');
+      // A length-truncated answer is still the model's answer: deliver it flagged rather than as silence.
+      const truncated = response.stop_reason === 'max_tokens';
+      if (response.stop_reason !== 'end_turn' && !truncated) throw new Error(`incomplete_model_response:${response.stop_reason}`);
+      if (truncated) logger.warn({ requestId, provider }, 'model response truncated at max_tokens');
 
       recordCallInUsage();
       const cacheInfo = response.usage?.cache_read_input_tokens ? ` (cache: ${response.usage.cache_read_input_tokens})` : '';
@@ -613,6 +616,7 @@ class LLMService {
           providerReason,
           modelName,
           requestId,
+          truncated,
         },
       };
     } catch (err) {
@@ -625,7 +629,8 @@ class LLMService {
         logger.error({ requestId, status }, 'API overloaded');
         return { text: 'Claude API is overloaded. Try again shortly.', meta: null };
       }
-      logger.error({ requestId, status }, 'API error');
+      // Error class only: prompts and model output never reach the log line.
+      logger.error({ requestId, status, err: String(err?.message || err?.code || 'error').split('\n')[0].slice(0, 160) }, 'API error');
       return { text: null, meta: null };
     }
   }

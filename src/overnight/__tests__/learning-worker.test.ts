@@ -4,7 +4,7 @@ import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runLearningWorker } from '../learning-worker.js';
-import { appendEvent } from '../events.js';
+import { appendEvent, queryEvents } from '../events.js';
 import { buildLearningReview } from '../learning-review.js';
 import { runRollingReplay } from '../improve-replay.js';
 
@@ -29,6 +29,24 @@ test('nightly execution is independent, exclusive, durable and reports real fail
     assert.equal(runs, 1);
     assert.equal(JSON.parse(await readFile(join(dir, `learning-run-${date}.json`), 'utf8')).status, 'completed');
     assert.equal(await runLearningWorker({ ...opts, date: '2026-09-14', consolidate: async () => {} }), 'failed');
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('a failed stage records its error class, never a bare constant', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'clint-worker-reason-'));
+  try {
+    const date = '2026-09-15';
+    const record = async (stage: 'consolidate' | 'improve' | 'report') => {
+      await appendEvent({ stage, phase: 'fixture', inputs: [], outputs: [], verdict: 'ok',
+        reason: 'fixture', evidence_refs: [], rollback_ref: null, budget: { opus_sessions: 0, tokens: 0 } }, { date, overnightDir: dir });
+    };
+    const status = await runLearningWorker({ date, overnightDir: dir, consolidate: () => record('consolidate'),
+      review: () => record('improve'), report: () => record('report'),
+      adapt: async () => { throw Object.assign(new Error('EEXIST: file already exists, open report-style.pending.json'), { code: 'EEXIST' }); } });
+    assert.equal(status, 'failed');
+    const failed = (await queryEvents({ date, overnightDir: dir })).find(e => e.verdict === 'failed');
+    assert.match(failed!.reason, /worker-adapt failed \(EEXIST\)/);
+    assert.ok(!failed!.reason.includes('report-style.pending.json'));
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 

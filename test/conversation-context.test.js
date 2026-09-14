@@ -151,9 +151,15 @@ test('local policy refuses cloud fallback and incomplete replies', async () => {
       [], [], [], true, 'professional', 'owner', currentConversation().conversationId, 'fixture');
     assert.equal(result, null);
   });
+  // A length-truncated local reply is delivered and flagged; any other unfinished stop is refused.
   const partial = core([{ ...reply('unfinished'), stop_reason: 'max_tokens' }]);
   const conversation = make('slack', { localOnly: true });
   const result = await partial.service.getResponse('Hello', 'professional', 'owner', null,
     conversation.conversationId, { conversation });
-  assert.equal(result.text, null);
+  assert.equal(result.text, 'unfinished');
+  assert.equal(result.meta.truncated, true);
+  const refused = core([{ ...reply('unfinished'), stop_reason: 'refusal' }]);
+  const other = await refused.service.getResponse('Hello', 'professional', 'owner', null,
+    conversation.conversationId, { conversation });
+  assert.equal(other.text, null);
 });

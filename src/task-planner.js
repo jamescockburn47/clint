@@ -8,7 +8,7 @@ import { PLANNING } from './constants.js';
 import { TOOL_DEFINITIONS } from './tools/definitions.js';
 import { executeTool } from './tools/handler.js';
 import { evoFetch, llamaBreaker } from './evo-client.js';
-import { currentConversation } from './conversation-context.js';
+import { currentConversation, permitsPrivateContext } from './conversation-context.js';
 import { permitsTool } from './conversation-tools.js';
 import { getSystemPrompt } from './prompt.js';
 
@@ -91,8 +91,11 @@ Good reasoning:
 
 CONTEXT ABOUT JAMES:
 - Senior commercial litigation solicitor, direct communication style
+- "Disclosure" likely refers to litigation disclosure obligations`;
+
+/** Personal facts are private context: only owner-private conversations may see them. */
+const PRIVATE_PLANNING_CONTEXT = `
 - Has calendar, email, todos, memory, web search, travel tools available
-- "Disclosure" likely refers to litigation disclosure obligations
 - Has a son called Henry, wife called MG
 - Frequently travels London-York by train`;
 
@@ -217,7 +220,7 @@ async function callPlannerModel(systemPrompt, userPrompt, timeoutMs = PLANNING.D
 
 async function reasonAndDecompose(message, memoryContext) {
   // Phase 1: Goal reasoning — understand what the user actually wants
-  const reasoningPrompt = `${GOAL_REASONING_PROMPT}
+  const reasoningPrompt = `${GOAL_REASONING_PROMPT}${permitsPrivateContext() ? PRIVATE_PLANNING_CONTEXT : ''}
 
 ${memoryContext ? `WHAT CLAWD ALREADY KNOWS (from memory/context):\n${memoryContext.slice(0, 2000)}\n` : ''}
 Reason about this request. Output your reasoning as structured text, then the plan as JSON.
@@ -496,7 +499,7 @@ export async function executeStep(step, completedSteps, senderJid, chatJid) {
     step.error = err.message;
     step.completedAt = new Date().toISOString();
     step.timeMs = Date.now() - new Date(startedAt).getTime();
-    logger.warn('plan step failed');
+    logger.warn({ tool: step.tool, stepId: step.step_id, err: String(err.message || 'error').split('\n')[0].slice(0, 160) }, 'plan step failed');
     return false;
   }
 }

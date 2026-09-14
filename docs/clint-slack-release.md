@@ -2,7 +2,36 @@
 
 ## Current status
 
-Update at 22:18 BST: release `63a09a8d6a92f9e6` accepts ordinary owner messages
+Update 14 September 2026 (protocol `clint-shared-core-v4`): WhatsApp is decommissioned;
+Slack is the only conversational transport. Adapter changes, each with tests:
+
+- An unavailable local core (`provider: unavailable`, open circuit breaker) no longer
+  consumes one of the three delivery attempts; the message is requeued and retried on
+  every drain for up to six hours, then failed with a thread notice.
+- Slack platform refusals (`invalid_blocks`, `msg_too_long`, `not_in_channel`) are
+  terminal `failed` rows with a thread notice; rate limits keep the generated reply and
+  resend it on a later drain; only unknown transport outcomes remain `uncertain`.
+- Every dropped message posts a short plain notice into its thread (no source or error
+  text). Hourly, the journal reports counts of `failed`/`uncertain`/`blocked` rows.
+- Journal lines carry a bounded error code (`detail`), never source text.
+- A top-level channel message recalls the channel's ten most recent exchanges; a thread
+  reply recalls its thread. Recall still requires `state='sent'`.
+- `EVO_MEMORY_ENABLED=false` is now honoured by the memory client: no health probes,
+  searches or queued writes reach `:5100`.
+- Startup also rejects Tavily, Brave and Perplexity keys and a non-loopback SearXNG URL.
+- The planner's private facts about James and the self-awareness project list are
+  withheld unless the conversation permits private context; tool descriptions no longer
+  name projects.
+- A `max_tokens` truncation delivers the partial text flagged `meta.truncated`, instead
+  of silence.
+- `install_slack_release.py --upgrade` reads the readiness string from each release's
+  own `src/slack/model.js` and restores the pre-upgrade SQLite inbox on rollback.
+
+The manifest and policy accept un-mentioned owner messages; scopes are
+`app_mentions:read`, `chat:write`, `groups:read`, `groups:history` with events
+`app_mention` and `message.groups`. Sections below that say "mention @Clint" are historical.
+
+Update at 22:18 BST, 13 September: release `63a09a8d6a92f9e6` accepts ordinary owner messages
 in `clint-private`, including thread replies, without mentions. Slack's
 `message.groups` subscription and `groups:history` grant are active. Other users,
 channels, workspaces, bot messages and edited-message subtypes remain excluded.

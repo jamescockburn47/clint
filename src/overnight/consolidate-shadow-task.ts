@@ -197,7 +197,8 @@ export async function buildConsolidateDeps(): Promise<ShadowTaskDeps> {
     storeMemory: async (fact, category, tags, confidence, source) => {
       return z.object({ stored: z.boolean().optional(), queued: z.boolean().optional(),
         offline: z.boolean().optional(), error: z.string().optional(),
-      }).parse(await storeMemory(fact, category, tags, confidence, source));
+        // The nightly worker retries a failed night itself; a local queue would store the statement twice.
+      }).parse(await storeMemory(fact, category, tags, confidence, source, { queueOnFailure: false }));
     },
   };
 

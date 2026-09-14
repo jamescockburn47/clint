@@ -48,6 +48,7 @@ export async function triggerForgeNow({
   });
   return {
     status: 202,
-    body: { ok: true, message: 'emergency IMPROVE started', todayStr },
+    // No implement/replay/deploy dependencies are wired in production: only a review packet is produced.
+    body: { ok: true, message: 'improvement review packet started (proposal-only; nothing is implemented or deployed)', todayStr },
   };
 }

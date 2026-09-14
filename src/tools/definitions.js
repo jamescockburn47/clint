@@ -655,7 +655,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'project_read',
-    description: 'Read a project\'s full details or a specific section. Use to recall project architecture, pitch points, next steps, etc. Available projects include atlas, clint-agi, sovren, and spire (the complete reference for the Spire venue: floors, voice, agents, controls).',
+    description: 'Read a project\'s full details or a specific section. Use to recall project architecture, pitch points, next steps, etc. Call project_list first: only the ids it returns are readable in this conversation.',
     input_schema: {
       type: 'object',
       properties: {

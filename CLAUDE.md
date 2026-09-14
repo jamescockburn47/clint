@@ -1,6 +1,14 @@
 > Historical document. September 2026 behavior and operational policy are defined in
 > [README](README.md), [AGENTS.md](AGENTS.md) and [the overhaul report](docs/clint-overhaul-2026-09-13.md).
 > Earlier AGI, model, deployment and autonomous source-change claims are not current guarantees.
+>
+> **14 September 2026: WhatsApp is decommissioned.** `clawdbot.service`, `llama-server-main.service`
+> (port 8080) and the WhatsApp pairing state are gone from the EVO. The "Deploying — BINDING" flow
+> below targeted the WhatsApp checkout and is retired. Clint's only conversational transport is the
+> Slack adapter (`src/slack/`), deployed under `/opt/clint-slack/releases/<id>` by
+> `../stage_slack_release.py` then `../install_slack_release.py --upgrade`; see
+> [docs/clint-slack-release.md](docs/clint-slack-release.md). Local model gateway: llama-swap on
+> `127.0.0.1:11435` serving `qwen3.8-27b`. Development source: this worktree on `codex/clint-overhaul`.
 
 # CLAUDE.md — Clawdbot (Clawd Monet)
 
