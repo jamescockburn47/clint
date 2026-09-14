@@ -29,8 +29,8 @@ export async function publicDestination(raw, resolve = lookup) {
   return { url, address: chosen.address };
 }
 
-export async function fetchPublicText(raw, { resolve = lookup, request, timeoutMs = 15000,
-  maxBytes = 512000 } = {}) {
+export async function fetchPublicResource(raw, { resolve = lookup, request, timeoutMs = 15000,
+  maxBytes = 512000, binaryTypes = new Set(), maxBinaryBytes = 20_000_000 } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const abort = new Promise((_, reject) => controller.signal.addEventListener('abort',
@@ -45,7 +45,7 @@ export async function fetchPublicText(raw, { resolve = lookup, request, timeoutM
         const req = send(url, { method: 'GET', signal: controller.signal, agent: false,
           lookup: (_host, opts, callback) => callback(null,
             opts.all ? [{ address, family: 4 }] : address, 4),
-          headers: { 'User-Agent': 'Clint/1.0', Accept: 'text/html,text/plain,application/json' },
+          headers: { 'User-Agent': 'Clint/1.0', Accept: 'text/html,text/plain,application/json,application/pdf' },
         }, accept);
         req.on('error', reject); req.end();
       });
@@ -56,20 +56,35 @@ export async function fetchPublicText(raw, { resolve = lookup, request, timeoutM
         continue;
       }
       const parts = [];
+      const contentType = response.headers['content-type'] || '';
+      const mime = contentType.split(';')[0].trim().toLowerCase();
+      const limit = binaryTypes.has(mime) ? maxBinaryBytes : maxBytes;
+      if (response.statusCode === 206 || response.headers['content-range']) {
+        response.destroy(); throw new Error('web_partial_response_unsupported');
+      }
+      const declared = response.headers['content-length'];
+      if (declared !== undefined && (!/^\d+$/.test(declared) || Number(declared) > limit)) {
+        response.destroy(); throw new Error('web_response_too_large');
+      }
       if (response.headers['content-encoding'] && response.headers['content-encoding'] !== 'identity') {
         response.destroy(); throw new Error('web_encoding_unsupported');
       }
       let size = 0;
       for await (const chunk of response) {
         size += chunk.length;
-        if (size > maxBytes) { response.destroy(); throw new Error('web_response_too_large'); }
+        if (size > limit) { response.destroy(); throw new Error('web_response_too_large'); }
         parts.push(chunk);
       }
-      return { status: response.statusCode, finalUrl: url.href, contentType: response.headers['content-type'] || '',
-        text: Buffer.concat(parts).toString('utf8') };
+      return { status: response.statusCode, finalUrl: url.href, contentType, body: Buffer.concat(parts) };
     }
     throw new Error('web_redirect_limit');
   };
   try { return await Promise.race([operation(), abort]); }
   finally { clearTimeout(timer); controller.abort(); }
+}
+
+export async function fetchPublicText(raw, options = {}) {
+  // The compatibility text path never opts into the larger binary limit.
+  const { body, ...response } = await fetchPublicResource(raw, { ...options, binaryTypes: new Set() });
+  return { ...response, text: body.toString('utf8') };
 }

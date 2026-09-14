@@ -67,9 +67,9 @@ test('Actual fetch entry rejects invalid continuation before I/O and preserves p
   let calls = 0;
   const { webFetch } = await esmock('../src/tools/search.js', {
     '../src/conversation-context.js': { currentConversation: () => ({ transport: 'slack' }) },
-    '../src/public-web-fetch.js': { fetchPublicText: async () => {
+    '../src/public-web-fetch.js': { fetchPublicResource: async () => {
       calls++; return { status: 200, contentType: 'text/html', finalUrl: 'https://example.org/final',
-        text: '<main><p>' + 'z'.repeat(9000) + '</p></main>' };
+        body: Buffer.from('<main><p>' + 'z'.repeat(9000) + '</p></main>') };
     } },
   });
   assert.equal(JSON.parse(await webFetch({ url: 'https://example.org', offset: 8000 })).state, 'invalid_page_request');
@@ -80,11 +80,11 @@ test('Actual fetch entry rejects invalid continuation before I/O and preserves p
   assert.equal(next.finalUrl, 'https://example.org/final'); assert.equal(calls, 2);
 });
 
-test('Binary pages and explicitly non-UTF8 pages are not labelled extracted text', async () => {
-  let type = 'application/pdf';
+test('Unsupported binary pages and explicitly non-UTF8 pages are not labelled extracted text', async () => {
+  let type = 'image/png';
   const { webFetch } = await esmock('../src/tools/search.js', {
     '../src/conversation-context.js': { currentConversation: () => ({ transport: 'slack' }) },
-    '../src/public-web-fetch.js': { fetchPublicText: async () => ({ status: 200, contentType: type, text: '%PDF binary' }) },
+    '../src/public-web-fetch.js': { fetchPublicResource: async () => ({ status: 200, contentType: type, body: Buffer.from('binary') }) },
   });
   assert.equal(JSON.parse(await webFetch({ url: 'https://example.org/file' })).state, 'unsupported_content_type');
   type = 'text/html; charset=ISO-8859-1';

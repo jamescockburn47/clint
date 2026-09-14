@@ -1,9 +1,11 @@
 import config from '../config.js';
 import logger from '../logger.js';
 import { currentConversation } from '../conversation-context.js';
-import { fetchPublicText } from '../public-web-fetch.js';
+import { fetchPublicResource } from '../public-web-fetch.js';
 import { domainRestrictions, allowedSearchResult } from './search-domains.js';
 import { validPageRequest, webPage } from './web-page.js';
+import { BINARY_DOCUMENT_TYPES } from './document-extract.js';
+import { webDocument } from './web-document.js';
 
 export async function webFetch({ url, offset = 0, source_hash: sourceHash }) {
   if (!url) return 'URL is required.';
@@ -14,10 +16,10 @@ export async function webFetch({ url, offset = 0, source_hash: sourceHash }) {
     const controller = new AbortController();
     timeout = setTimeout(() => controller.abort(), 15000);
 
-    const publicResult = currentConversation() ? await fetchPublicText(url) : null;
+    const publicResult = currentConversation() ? await fetchPublicResource(url, { binaryTypes: BINARY_DOCUMENT_TYPES }) : null;
     const res = publicResult ? { ok: publicResult.status >= 200 && publicResult.status < 300,
       status: publicResult.status, headers: { get: () => publicResult.contentType },
-      text: async () => publicResult.text, json: async () => JSON.parse(publicResult.text),
+      text: async () => publicResult.body.toString('utf8'), json: async () => JSON.parse(publicResult.body.toString('utf8')),
     } : await fetch(url, {
       signal: controller.signal,
       headers: {
@@ -31,6 +33,9 @@ export async function webFetch({ url, offset = 0, source_hash: sourceHash }) {
     if (!res.ok) return `Failed to fetch URL (HTTP ${res.status}).`;
 
     const contentType = res.headers.get('content-type') || '';
+    const mime = contentType.split(';')[0].trim().toLowerCase();
+    if (publicResult && BINARY_DOCUMENT_TYPES.has(mime)) return await webDocument(publicResult.body, mime,
+      { url, finalUrl: publicResult.finalUrl, offset, sourceHash });
     if (!/^text\//i.test(contentType) && !/^application\/(?:json|[\w.-]+\+json|xhtml\+xml|xml)(?:;|$)/i.test(contentType)) {
       return JSON.stringify({ state: 'unsupported_content_type', content: null,
         instruction: 'This reader supports text pages and JSON/XML, not binary documents or images.' });

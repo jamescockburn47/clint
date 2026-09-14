@@ -1,12 +1,15 @@
 import { createHash } from 'node:crypto';
 
 export function validPageRequest(offset, sourceHash) {
-  return Number.isSafeInteger(offset) && offset >= 0 && offset <= 1000000 &&
+  return Number.isSafeInteger(offset) && offset >= 0 && offset <= 2000000 &&
     (sourceHash === undefined ? offset === 0 : typeof sourceHash === 'string' && /^[a-f0-9]{64}$/.test(sourceHash));
 }
 
-export function webPage(text, { url, finalUrl = url, offset = 0, sourceHash, now = () => new Date() }) {
-  const digest = createHash('sha256').update(finalUrl + '\0' + text).digest('hex');
+export function webPage(text, { url, finalUrl = url, offset = 0, sourceHash, sourceFingerprint,
+  now = () => new Date() }) {
+  const hash = createHash('sha256').update(finalUrl + '\0' + text);
+  if (sourceFingerprint) hash.update('\0' + sourceFingerprint);
+  const digest = hash.digest('hex');
   const source = { url, finalUrl, observedAt: now().toISOString(), sourceHash: digest,
     representation: 'extracted_text', totalCharacters: text.length };
   if (sourceHash && sourceHash !== digest) return JSON.stringify({ state: 'source_changed', ...source,

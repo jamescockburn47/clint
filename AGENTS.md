@@ -14,7 +14,7 @@ not implemented. Do not present policy v1 below as the finished learning capabil
 Keep existing safeguards until replacements pass.
 
 The separate minimal-prompt pilot has been replaced in source by a shared-core
-`src/slack/model.js` adapter. Current v9 release `4e74253b58d6d1ff` runs Flash Next
+`src/slack/model.js` adapter. Current v11 release `975b2c6084e2a530` runs Flash Next
 under the enabled persistent root `clint-flash.service`. The owner authorized removing
 the temporary lease on 14 September. Explicit evo-job serve retains exclusive admission,
 hard caps, health/reserve monitoring and fallback recovery while normal run/build jobs
@@ -219,3 +219,11 @@ persistence or retirement cannot overturn behavioral failure. v11 research candi
 from live v9 capabilities, with the failed teaching path disconnected. The independently
 found policy-transition protection applies to ordinary private inbox history/cached replies
 too: legacy rows lack audience provenance, so non-open policies cannot reuse them.
+
+The frozen structural grounding-prompt revision also failed its fresh paired screen:
+candidate G4 supplied an invalid statistical decision rule. Baseline/candidate outputs,
+matched request inputs and independent scoring remain in ../evidence. Do not activate
+that prompt or teaching, tune against those exposed cases, or reclassify the failure as
+acceptance. Public-document v12 independently extends web_fetch to the already isolated
+PDF/DOCX/XLSX worker, preserving network limits and raw/extracted version identity.
+Its release keeps the baseline prompt and teaching disconnection unchanged.

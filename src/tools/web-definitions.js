@@ -6,10 +6,10 @@ export const WEB_DEFINITIONS = [
       include_domains: { type: 'array', maxItems: 8, items: { type: 'string' },
         description: 'Optional allowed domains, e.g. docs.python.org; exact domain and subdomains. No schemes, ports or paths.' },
     }, required: ['query'] } },
-  { name: 'web_fetch', description: 'Read a public page as extracted text with source hash/date. Returns up to 8,000 characters and nextOffset. Continue using the same URL, nextOffset as offset and sourceHash as source_hash. If source_changed, restart rather than combine versions. Images/attachments/dynamic content are not established.',
+  { name: 'web_fetch', description: 'Read a public text page or PDF/DOCX/XLSX document with source hash/date. Document extraction reports coverage and limitations; diagrams/layout are not visually interpreted. Returns up to 8,000 characters and nextOffset. Continue using the same URL, nextOffset as offset and sourceHash as source_hash. If source_changed, restart rather than combine versions. Page images, attachments and dynamic content are not established.',
     input_schema: { type: 'object', properties: {
       url: { type: 'string', description: 'Full public URL.' },
-      offset: { type: 'integer', minimum: 0, maximum: 1000000, description: 'Character offset; default 0.' },
+      offset: { type: 'integer', minimum: 0, maximum: 2000000, description: 'Character offset; default 0.' },
       source_hash: { type: 'string', pattern: '^[a-f0-9]{64}$', description: 'Previous sourceHash; required when offset is positive.' },
     }, required: ['url'] } },
 ];
