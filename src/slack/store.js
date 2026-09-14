@@ -34,16 +34,22 @@ export class SlackStore {
   next() {
     return this.db.prepare("SELECT * FROM events WHERE state IN ('queued','ready') ORDER BY ts LIMIT 1").get();
   }
+  /** Thread replies recall their thread; a top-level message recalls the channel's recent exchanges. */
   history(event) {
+    const root = event.thread === event.ts;
     return this.db.prepare(`SELECT text,answer,ts FROM events WHERE team=? AND channel=?
-      AND owner=? AND thread=? AND state='sent' AND ts<? ORDER BY ts DESC LIMIT 10`)
-      .all(event.team, event.channel, event.owner, event.thread, event.ts).reverse();
+      AND owner=? AND (?=1 OR thread=?) AND state='sent' AND ts<? ORDER BY ts DESC LIMIT 10`)
+      .all(event.team, event.channel, event.owner, root ? 1 : 0, event.thread, event.ts).reverse();
   }
   setState(id, state, error = null) {
     this.db.prepare('UPDATE events SET state=?,error=? WHERE id=?').run(state, error, id);
   }
   generating(id) {
     this.db.prepare("UPDATE events SET state='generating',attempts=attempts+1 WHERE id=?").run(id);
+  }
+  /** Give back an attempt that never reached a model: the core was unavailable. */
+  requeue(id, error = null) {
+    this.db.prepare("UPDATE events SET state='queued',attempts=max(attempts-1,0),error=? WHERE id=?").run(error, id);
   }
   ready(id, answer) {
     this.db.prepare("UPDATE events SET state='ready',answer=? WHERE id=?").run(answer, id);

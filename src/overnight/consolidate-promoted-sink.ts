@@ -26,7 +26,8 @@ export class PromotedSink implements StoreClient {
     const fact = `Recorded statement by ${speaker} (unverified claim): ${JSON.stringify(candidate.text)}`;
     const result = await this.opts.deps.storeMemory(fact, candidate.category,
       ['source_verified', ...candidate.sources.map(s => `src:${s.hash}`),
-        ...[...new Set(candidate.sources.map(s => s.chatJid).filter(Boolean))].map(jid => `chat:${jid}`)], 1, source);
+        ...[...new Set(candidate.sources.map(s => s.chatJid).filter(Boolean))].map(jid => `chat:${jid}`)],
+      candidate.confidence, source);
     if (result?.error) throw new Error('memory_store_failed');
     if (!result?.stored || result.queued || result.offline) throw new Error('memory_not_persisted');
   }

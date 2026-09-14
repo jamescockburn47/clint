@@ -34,6 +34,24 @@ test('isolated proposal compares distinct snapshots and retains a patch without 
     assert.equal(await readFile(join(proposal.worktree, 'src', 'format.js'), 'utf8'), observed[1]);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+test('a missing sandbox blocks the proposal instead of recording a candidate verdict', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'clint-code-nosandbox-'));
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
+  try {
+    await mkdir(join(dir, 'src'));
+    await writeFile(join(dir, 'src', 'format.js'), 'export const format = n => `${n}s`;\n');
+    git('init'); git('add', 'src');
+    git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-m', 'isolated fixture');
+    const result = await createCodeProposal({ repoRoot: dir, sourcePath: 'src/format.js', problem: 'unit error',
+      evidenceIds: ['real-fixture-event'], proposalDir: join(dir, 'proposals'), dependencies: '', harness: '',
+      generate: async () => JSON.stringify({ content: 'export const format = n => `${n} seconds`;\n' }),
+      evaluate: async () => ({ ok: false, exitCode: 127, output: 'sandbox_unavailable:docker_not_found', image: 'fixture', unavailable: true }) });
+    assert.equal(result.status, 'blocked_sandbox_unavailable');
+    const proposal = JSON.parse(await readFile(join(result.path, 'proposal.json'), 'utf8'));
+    assert.equal(proposal.status, 'blocked_sandbox_unavailable');
+    assert.equal(proposal.automaticApplication, false);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
 test('source policy excludes escape paths and executable authority boundaries', () => {
   for (const path of ['../src/helper.js', 'src/../config.js', 'src/config.js', 'src/overnight/improve.ts', 'test/acceptance.test.js', 'src/security.js']) {
     assert.throws(() => assertProposalPath(path), /owner_review/);

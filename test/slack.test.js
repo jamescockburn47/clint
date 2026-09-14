@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { loadSlackConfig } from '../src/slack/config.js';
 import { acceptMention, allowedChannel, replyPayload } from '../src/slack/policy.js';
 import { SlackStore } from '../src/slack/store.js';
-import { SlackWorker } from '../src/slack/worker.js';
+import { SlackWorker, CORE_WAIT_LIMIT_MS } from '../src/slack/worker.js';
 import { makeSlackGenerator } from '../src/slack/model.js';
 import { createQwenChatClient } from '../src/qwen-chat.js';
 import { SocketModeClient } from '@slack/socket-mode';
@@ -95,6 +95,8 @@ test('retries and simultaneous drains generate and deliver exactly once, in the 
   store.enqueue(event, 1001); await worker.drain();
   assert.equal(generated, 1); assert.equal(sent, 1);
   assert.equal(store.history({ ...event, ts: '1789328020.000001' }).length, 1);
+  // A new top-level message recalls the channel's recent exchanges; a reply into another thread does not.
+  assert.equal(store.history({ ...event, ts: '1789328020.000001', thread: '1789328020.000001' }).length, 1);
   for (const patch of [{ thread: '1789000000.000001' }, { owner: 'U99999999' },
     { channel: 'C99999999' }, { team: 'T99999999' }]) {
     assert.equal(store.history({ ...event, ts: '1789328020.000001', ...patch }).length, 0);
@@ -123,10 +125,57 @@ test('unknown delivery outcome is retained and never automatically retried', asy
 test('generation failures have three attempts and never send invented fallback replies', async t => {
   const store = fixture(t); store.enqueue(acceptMention(body(), cfg, bot), 1000);
   let calls = 0;
+  let notices = 0;
   const worker = new SlackWorker({ store, config: cfg, generate: async () => { calls++; throw Error('failed'); },
-    web: { conversations: { info: async () => channel() }, chat: { postMessage: async () => assert.fail('must not send') } } });
+    web: { conversations: { info: async () => channel() }, chat: { postMessage: async payload => {
+      if (/^Clint could not answer/.test(payload.text) && !payload.blocks) { notices++; return { ok: true }; }
+      assert.fail('must not send');
+    } } } });
   for (let i = 0; i < 5; i++) await worker.drain();
-  assert.equal(calls, 3); assert.equal(store.counts()[0].state, 'failed');
+  assert.equal(calls, 3); assert.equal(store.counts()[0].state, 'failed'); assert.equal(notices, 1);
+});
+test('an unavailable core never consumes attempts; it is retried until a wait limit, then reported', async t => {
+  const store = fixture(t); store.enqueue(acceptMention(body(), cfg, bot), 1000);
+  let calls = 0, sent = 0, notices = 0, available = false;
+  const web = { conversations: { info: async () => channel() }, chat: { postMessage: async payload => {
+    if (payload.blocks) { sent++; return { ok: true, channel: cfg.channelId, ts: '1789328010.000001' }; }
+    notices++; return { ok: true };
+  } } };
+  const generate = async () => { calls++; if (!available) throw Error('slack_core_unavailable'); return 'Hello'; };
+  const worker = new SlackWorker({ store, config: cfg, generate, web, now: () => 1001 });
+  for (let i = 0; i < 5; i++) await worker.drain();
+  assert.equal(calls, 5); assert.equal(store.counts()[0].state, 'queued'); assert.equal(store.next().attempts, 0);
+  available = true; await worker.drain();
+  assert.equal(sent, 1); assert.equal(notices, 0); assert.equal(store.counts()[0].state, 'sent');
+  const stale = fixture(t); stale.enqueue(acceptMention(body(), cfg, bot), 1000);
+  const expired = new SlackWorker({ store: stale, config: cfg, web, now: () => 1000 + CORE_WAIT_LIMIT_MS + 1,
+    generate: async () => { throw Error('slack_core_unavailable'); } });
+  await expired.drain();
+  assert.equal(stale.counts()[0].state, 'failed'); assert.equal(notices, 1); assert.equal(sent, 1);
+});
+test('definitive Slack refusals fail with a notice; rate limits resend the same reply once', async t => {
+  const store = fixture(t); store.enqueue(acceptMention(body(), cfg, bot), 1000);
+  let generated = 0, posts = 0, notices = 0;
+  const refusal = Object.assign(new Error('An API error occurred: invalid_blocks'),
+    { code: 'slack_webapi_platform_error', data: { ok: false, error: 'invalid_blocks' } });
+  const web = { conversations: { info: async () => channel() }, chat: { postMessage: async payload => {
+    if (!payload.blocks) { notices++; return { ok: true }; }
+    posts++; throw refusal;
+  } } };
+  const worker = new SlackWorker({ store, config: cfg, web, generate: async () => { generated++; return 'Hello'; } });
+  await worker.drain(); await worker.drain();
+  assert.equal(posts, 1); assert.equal(generated, 1); assert.equal(notices, 1);
+  assert.deepEqual(store.counts().map(row => ({ ...row })), [{ state: 'failed', count: 1 }]);
+  assert.match(store.db.prepare('SELECT error FROM events').get().error, /slack_rejected:invalid_blocks/);
+  const limited = fixture(t); limited.enqueue(acceptMention(body(), cfg, bot), 1000);
+  let attempts = 0, resent = 0;
+  const later = new SlackWorker({ store: limited, config: cfg, generate: async () => { resent++; return 'Hello'; },
+    web: { conversations: { info: async () => channel() }, chat: { postMessage: async () => {
+      if (++attempts === 1) throw Object.assign(new Error('rate limited'), { code: 'slack_webapi_rate_limited_error', retryAfter: 1 });
+      return { ok: true, channel: cfg.channelId, ts: '1789328011.000001' };
+    } } } });
+  await later.drain(); assert.equal(limited.counts()[0].state, 'ready');
+  await later.drain(); assert.equal(limited.counts()[0].state, 'sent'); assert.equal(attempts, 2); assert.equal(resent, 1);
 });
 test('adapter calls shared core with authenticated audience, local inference and thread history', async () => {
   let requests = 0;
@@ -161,10 +210,11 @@ test('installed SDKs expose the actual entry-point constructors', () => {
 });
 test('adapter rejects missing and unavailable core results', async () => {
   const event = { team: cfg.teamId, channel: cfg.channelId, owner: cfg.ownerId, text: 'Question' };
-  for (const result of [null, { text: '' }, { text: 'Unavailable', meta: { provider: 'unavailable' } }]) {
+  for (const result of [null, { text: 'Unavailable', meta: { provider: 'unavailable' } }]) {
     const generate = makeSlackGenerator(cfg, { getResponse: async () => result });
-    await assert.rejects(generate(event, []), /invalid_core_output/);
+    await assert.rejects(generate(event, []), /core_unavailable/);
   }
+  await assert.rejects(makeSlackGenerator(cfg, { getResponse: async () => ({ text: '' }) })(event, []), /invalid_core_output/);
 });
 
 test('internal control replies are regenerated once and never delivered', async () => {

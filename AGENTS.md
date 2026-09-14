@@ -14,10 +14,30 @@ not implemented. Do not present policy v1 below as the finished learning capabil
 Keep existing safeguards until replacements pass.
 
 The separate minimal-prompt pilot has been replaced in source by a shared-core
-`src/slack/model.js` adapter. Release `fea2c02bc6066aba` is running on the EVO with
+`src/slack/model.js` adapter. Release `63a09a8d6a92f9e6` is running on the EVO with
 boot startup enabled; controls and actual Slack delivery/restart recall were verified. See
 `docs/clint-existing-control-audit.md`. Do not replace live EVO group policies with
 repository defaults, or treat a non-WhatsApp ID as a private owner conversation.
+James's messages in `clint-private` no longer require mentions; the exact
+owner/channel restriction remains. Internal control markers are never deliverable replies.
+
+14 September 2026 owner decision: WhatsApp is decommissioned. `clawdbot.service` and
+`llama-server-main.service` are disabled on the EVO (both had been crash-looping since
+31 August: logged-out session, missing GGUF); the WhatsApp auth state was archived to
+`~/backups/` and removed. Slack is Clint's only conversational transport. WhatsApp-specific
+regressions found in the 14 September review (group tool authority, `/debate` auth, Spire
+floor audience, pairing recovery) are recorded in the review, not fixed. The source is now
+committed on `codex/clint-overhaul` (base `6bcd928`); the 14 September changes (`v4`
+adapter: attempt accounting for an unavailable core, classified Slack send failures,
+thread notices for dropped messages, channel-level recall for top-level messages, error
+codes in journal lines, private planner context and project names gated on
+`permitsPrivateContext`, `EVO_MEMORY_ENABLED` honoured by the memory client, wider
+credential guard, extract rejections separated from file errors, unverified statements at
+confidence 0.5, no queued duplicates on promotion, sandbox-unavailable status) each carry
+tests. Every "independent review" must leave an artifact (findings with file:line) in
+`../evidence/`; a verdict string written by the deploying session is not a review.
+Legacy ceilings for `src/claude.js`, `src/http-server.js`, `src/memory.js` and
+`src/task-planner.js` were raised by the exact size of those bounded fixes.
 
 Personalization direction: `docs/clint-personalization.md`. Learn source-linked,
 context-specific behavior from James's interactions. Separate desired assistant behavior

@@ -2,6 +2,49 @@
 
 ## Current status
 
+Update 14 September 2026 (protocol `clint-shared-core-v4`): WhatsApp is decommissioned;
+Slack is the only conversational transport. Adapter changes, each with tests:
+
+- An unavailable local core (`provider: unavailable`, open circuit breaker) no longer
+  consumes one of the three delivery attempts; the message is requeued and retried on
+  every drain for up to six hours, then failed with a thread notice.
+- Slack platform refusals (`invalid_blocks`, `msg_too_long`, `not_in_channel`) are
+  terminal `failed` rows with a thread notice; rate limits keep the generated reply and
+  resend it on a later drain; only unknown transport outcomes remain `uncertain`.
+- Every dropped message posts a short plain notice into its thread (no source or error
+  text). Hourly, the journal reports counts of `failed`/`uncertain`/`blocked` rows.
+- Journal lines carry a bounded error code (`detail`), never source text.
+- A top-level channel message recalls the channel's ten most recent exchanges; a thread
+  reply recalls its thread. Recall still requires `state='sent'`.
+- `EVO_MEMORY_ENABLED=false` is now honoured by the memory client: no health probes,
+  searches or queued writes reach `:5100`.
+- Startup also rejects Tavily, Brave and Perplexity keys and a non-loopback SearXNG URL.
+- The planner's private facts about James and the self-awareness project list are
+  withheld unless the conversation permits private context; tool descriptions no longer
+  name projects.
+- A `max_tokens` truncation delivers the partial text flagged `meta.truncated`, instead
+  of silence.
+- `install_slack_release.py --upgrade` reads the readiness string from each release's
+  own `src/slack/model.js` and restores the pre-upgrade SQLite inbox on rollback.
+
+The manifest and policy accept un-mentioned owner messages; scopes are
+`app_mentions:read`, `chat:write`, `groups:read`, `groups:history` with events
+`app_mention` and `message.groups`. Sections below that say "mention @Clint" are historical.
+
+Update at 22:18 BST, 13 September: release `63a09a8d6a92f9e6` accepts ordinary owner messages
+in `clint-private`, including thread replies, without mentions. Slack's
+`message.groups` subscription and `groups:history` grant are active. Other users,
+channels, workspaces, bot messages and edited-message subtypes remain excluded.
+The greeting regression is fixed: an actual unmentioned `hello` received
+`Hi James.` in 20.02 seconds. Internal-only `[INVALID]`, `[SILENT]` and `[APPROVED]`
+outputs are regenerated once per adapter attempt and rejected if still invalid;
+the worker permits at most three attempts. The canonical suite passed 1,405 tests,
+zero failed, one skipped. Independent review covered code and upgrade recovery.
+The system category now uses fast Qwen mode too; its live probe took 33.86 seconds.
+The prior release and a checked state/SQLite backup are retained at
+`/var/backups/clint-slack/63a09a8d6a92f9e6`. The following initial-release evidence
+remains historical; mention-only operation has been superseded.
+
 The separate minimal-prompt pilot has been replaced in source. Slack now invokes
 `LLMService.getResponse`: Clint's existing prompt, Cortex, category routing,
 planner, tools, critique and deterministic outbound filter. The app and EVO service
@@ -15,7 +58,7 @@ Do not use the superseded minimal-file deployment instructions.
 James selected `clint-qtj3570.slack.com` (workspace `T0C2CKVEPKJ`) after LQ's app
 limit blocked installation. This is distinct from the mistyped `clint-ktj3570`.
 The private unshared channel is `clint-private` (`C0C1N0VKVUL`), containing James
-and Clint only. Owner: `U0C1GAY9D0E`; app: `A0C1N0KGRNG`. Mention `@Clint` in
+and Clint only. Owner: `U0C1GAY9D0E`; app: `A0C1N0KGRNG`. Write normally in
 the channel and in follow-up thread replies. Slack DMs are not connected. LQ remains
 the eventual preferred workspace.
 
@@ -61,8 +104,8 @@ outside the basic conversation path remains a limitation.
   a crash. Action tools need durable action IDs/reconciliation before enabling them.
   Dreams, source-grounded learning and autonomous code proposals remain separate
   workstreams; a Slack launch does not activate those workers or finish personalization.
-- Slack answers explicit owner mentions in one private, unshared channel. No ambient
-  participation or unrelated messages are ingested. The old small-model engagement
+- Slack answers owner messages in one private, unshared channel. Other people's
+  messages are rejected before storage. The old small-model engagement
   module is preserved but was not wired into the current WhatsApp handler; it is not
   being represented as an active Slack answer gate. Category classification remains
   in the core with its existing fallback behavior.
@@ -70,7 +113,8 @@ outside the basic conversation path remains a limitation.
 ## Configuration and installation prerequisites
 
 Create the app from `integrations/slack/app-manifest.json`: `app_mentions:read`,
-`chat:write`, `groups:read`; Socket Mode app token: `connections:write`.
+`chat:write`, `groups:read`, `groups:history`; events: `app_mention`, `message.groups`;
+Socket Mode app token: `connections:write`.
 Verify the exact permission grant, team, app, owner and channel in Slack's UI.
 Use one private unshared channel, initially containing James and Clint only.
 
@@ -109,8 +153,10 @@ and blocked-topic assertions alone do not certify personality or factual quality
 Evidence is in `../evidence/slack-stage.json` and `../evidence/slack-evo-*`.
 `../install_slack_release.py` implements the reviewed first-install path and
 requires a stage-matched zero-exit receipt and matching remote verification/probe
-logs. It refuses an existing installation. Later upgrades must preserve state,
-retain the previous release, and verify rollback; do not rerun the first installer.
+logs. Without flags it refuses an existing installation. The reviewed `--upgrade`
+path performed this v2-to-v3 upgrade, retaining state, the previous release and a
+SQLite backup, and restoring the previous unit/release if startup fails. Its version
+readiness checks are specific to v2/v3 and must be updated for later protocol versions.
 
 After these checks and independent review pass, install the full reviewed core
 source and pinned production dependencies into a versioned root-owned directory

@@ -51,7 +51,11 @@ export function makeConsolidateStage(opts: ConsolidateStageOptions): StageFn {
     // failure mode of the extractor (e.g. EVO /extract offline or prompt
     // broken). Surface it as 'failed' so the health-check and morning report
     // can see it — 10 consecutive nights of candidates=0 previously showed ok.
-    const extractFailed = extractResult.errors.length > 0;
+    // File/service-level errors fail the phase. A rejected selection is recorded, not fatal,
+    // unless every selection was ungrounded: then the extractor contract itself is broken.
+    const rejections = extractResult.rejections ?? [];
+    const extractFailed = extractResult.errors.length > 0 ||
+      (extractResult.candidates.length === 0 && rejections.length > 0);
     await ctx.appendEvent({
       stage: 'consolidate',
       phase: 'extract',
@@ -59,7 +63,10 @@ export function makeConsolidateStage(opts: ConsolidateStageOptions): StageFn {
       outputs: [],
       verdict: extractFailed ? 'failed' : extractResult.candidates.length ? 'ok' : 'skipped',
       reason: `files=${extractResult.filesProcessed} candidates=${extractResult.candidates.length} rejected=${extractResult.rejected} errors=${extractResult.errors.length}`,
-      evidence_refs: extractResult.errors.map((e) => `extract_error:${e.file}:${e.reason}`),
+      evidence_refs: [
+        ...extractResult.errors.map((e) => `extract_error:${e.file}:${e.reason}`),
+        ...rejections.slice(0, 20).map((r) => `extract_rejected:${r.file}${r.line ? `:${r.line}` : ''}:${r.reason}`),
+      ],
       rollback_ref: null,
       budget: { opus_sessions: 0, tokens: 0 },
     });

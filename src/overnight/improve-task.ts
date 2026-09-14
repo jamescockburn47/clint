@@ -8,6 +8,7 @@ import { makeImproveStage, type ImproveStageDeps } from './improve.js';
 import { appendEvent, queryEvents } from './events.js';
 import { buildLearningReview, readLearningCandidates, writeLearningReview } from './learning-review.js';
 import { reflectOnStatements } from './dream-reflection.js';
+import { failureCode } from './learning-worker.js';
 
 export const IMPROVE_TASK_HOUR = 22;
 export const IMPROVE_TASK_MINUTE = 0;
@@ -39,10 +40,10 @@ export async function createImprovementReview(date: string, dir: string): Promis
   try {
     const { evoSimpleChat } = await import('../evo-llm.js');
     review.hypotheses = await reflectOnStatements(memories, (system, input) => evoSimpleChat(system, input, 2000, 120_000));
-  } catch {
+  } catch (err) {
     reflectionFailed = true;
     await appendEvent({ stage: 'improve', phase: 'dream', inputs: [], outputs: [], verdict: 'failed',
-      reason: 'Dream generation unavailable or failed its evidence contract; recollections preserved.',
+      reason: `Dream generation unavailable or failed its evidence contract (${failureCode(err)}); recollections preserved.`,
       evidence_refs: [], rollback_ref: null, budget: { opus_sessions: 0, tokens: 0 } }, { date, overnightDir: dir });
   }
   review.generation_status = reflectionFailed ? 'failed' : 'completed';

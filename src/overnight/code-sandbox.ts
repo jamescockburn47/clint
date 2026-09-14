@@ -7,7 +7,8 @@ import { realpath } from 'node:fs/promises';
 const execute = promisify(execFile);
 export const SANDBOX_IMAGE = 'node@sha256:b21fe589dfbe5cc39365d0544b9be3f1f33f55f3c86c87a76ff65a02f8f5848e';
 export const SANDBOX_TIMEOUT_MS = 180000;
-export interface SandboxResult { ok: boolean; exitCode: number; output: string; image: string }
+/** unavailable=true means the sandbox itself could not run (no Docker); it is not a test verdict. */
+export interface SandboxResult { ok: boolean; exitCode: number; output: string; image: string; unavailable?: boolean }
 export interface SandboxOptions {
   workspace: string;
   dependencies: string;
@@ -33,19 +34,28 @@ export async function runCodeSandbox(options: SandboxOptions): Promise<SandboxRe
     '--mount', `type=bind,source=${harness},target=/harness,readonly`,
     '--env=HOME=/tmp', '--env=CI=1', '--workdir=/tmp', SANDBOX_IMAGE,
     'node', '/harness/run.mjs'];
+  let started = false;
   try {
+    started = true;
     const r = await run('docker', args, { timeout: SANDBOX_TIMEOUT_MS, maxBuffer: 2 * 1024 * 1024 });
     return { ok: true, exitCode: 0, output: String(r.stdout), image: SANDBOX_IMAGE };
   } catch (err) {
-    const e = err as { code?: number; stdout?: string; killed?: boolean };
+    const e = err as { code?: number | string; stdout?: string; killed?: boolean };
+    if (e.code === 'ENOENT') {
+      // No Docker binary: a blocked capability, distinct from a failing candidate.
+      started = false;
+      return { ok: false, exitCode: 127, output: 'sandbox_unavailable:docker_not_found', image: SANDBOX_IMAGE, unavailable: true };
+    }
     return { ok: false, exitCode: typeof e.code === 'number' ? e.code : 1,
       output: e.killed ? 'sandbox_timeout' : String(e.stdout ?? 'sandbox_execution_failed'), image: SANDBOX_IMAGE };
   } finally {
     // Timeout terminates the client, not necessarily the container. Remove only our UUID-owned job.
-    try { await run('docker', ['rm', '-f', name], { timeout: 10000, maxBuffer: 10000 }); }
-    catch (err) {
-      const e = err as { stderr?: string };
-      if (!String(e.stderr).includes('No such container')) throw new Error('sandbox_cleanup_failed');
+    if (started) {
+      try { await run('docker', ['rm', '-f', name], { timeout: 10000, maxBuffer: 10000 }); }
+      catch (err) {
+        const e = err as { code?: unknown; stderr?: string };
+        if (e.code !== 'ENOENT' && !String(e.stderr).includes('No such container')) throw new Error('sandbox_cleanup_failed');
+      }
     }
   }
 }
