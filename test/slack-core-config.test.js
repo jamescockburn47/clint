@@ -11,10 +11,16 @@ test('Slack boot requires aligned local core endpoints and no inherited private 
   for (const patch of [{ evoLlmUrl: 'http://127.0.0.1:8080' }, { evoChatModel: 'other' },
     { evoClassifierUrl: 'https://external.example' }, { evoPlannerUrl: 'https://external.example' },
     { evoMemoryUrl: 'http://192.168.1.1:5100' }, { evoSearxngUrl: 'https://searx.example' },
-    { anthropicApiKey: 'secret' }, { minimaxApiKey: 'secret' }, { googleRefreshToken: 'secret' },
+    { anthropicApiKey: 'secret' }, { minimaxApiKey: 'secret' },
     { tavilyApiKey: 'secret' }, { braveApiKey: 'secret' }, { perplexityApiKey: 'secret' }]) {
     assert.throws(() => validateSlackCoreConfig({ ...core, ...patch }, slack), error => !error.message.includes('secret'));
   }
+});
+test('Slack permits explicit Google reads and fixed Tavily search without cloud inference credentials', () => {
+  assert.doesNotThrow(() => validateSlackCoreConfig({ ...core, googleRefreshToken: 'synthetic',
+    tavilyApiKey: 'synthetic', tavilyBaseUrl: 'https://api.tavily.com' }, slack));
+  assert.throws(() => validateSlackCoreConfig({ ...core, tavilyApiKey: 'synthetic',
+    tavilyBaseUrl: 'https://external.example' }, slack), /unexpected_search_endpoint/);
 });
 
 const environment = { SLACK_APP_TOKEN: 'xapp-synthetic-only', SLACK_BOT_TOKEN: 'xoxb-synthetic-only',

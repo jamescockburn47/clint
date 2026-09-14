@@ -1,5 +1,6 @@
 import { calendarListEvents, calendarCreateEvent, calendarUpdateEvent, calendarFindFreeTime } from './calendar.js';
 import { KNOWLEDGE_HANDLERS } from '../knowledge/tools.js';
+import { GOOGLE_READ_HANDLERS } from './google-read.js';
 import { gmailSearch, gmailRead, gmailDraft, gmailConfirmSend } from './gmail.js';
 import { searchTrains, searchAccommodation } from './travel.js';
 import { trainDepartures, trainFares } from './darwin.js';
@@ -40,8 +41,8 @@ import { systemStatus } from '../runtime-status.js';
 
 // --- Prefetch-aware web search ---
 async function webSearch(input) {
-  const cached = getWebPrefetch(input.query);
-  if (cached) { logger.info({ query: input.query }, 'web_search served from cortex prefetch'); return cached; }
+  const cached = currentConversation()?.transport === 'slack' ? null : getWebPrefetch(input.query);
+  if (cached) { logger.info('web_search served from cortex prefetch'); return cached; }
   return _rawWebSearch(input);
 }
 
@@ -137,7 +138,7 @@ async function sendFileHandler(input) {
 
 // --- Tool registry (dispatch map) ---
 
-const TOOL_MAP = new Map([ ...KNOWLEDGE_HANDLERS,
+const TOOL_MAP = new Map([ ...KNOWLEDGE_HANDLERS, ...GOOGLE_READ_HANDLERS,
   ['calendar_list_events', calendarListEvents],
   ['calendar_create_event', calendarCreateEvent],
   ['calendar_update_event', calendarUpdateEvent],

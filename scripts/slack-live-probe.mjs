@@ -3,7 +3,7 @@ import { makeSlackGenerator } from '../src/slack/model.js';
 import core from '../src/config.js';
 import { validateSlackCoreConfig } from '../src/slack/core-config.js';
 import { isControlReply } from '../src/slack/policy.js';
-const config = { modelUrl: 'http://127.0.0.1:11435', modelId: 'qwen3.8-27b',
+const config = { modelUrl: core.evoLlmUrl, modelId: core.evoChatModel,
   teamId: 'TSYNTHETIC', channelId: 'CSYNTHETIC', ownerId: 'USYNTHETIC',
   policy: { mode: 'project', blockedTopics: ['violet-cipher'] } };
 validateSlackCoreConfig(core, config);

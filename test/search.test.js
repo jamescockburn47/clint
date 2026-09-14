@@ -81,13 +81,13 @@ describe('webSearch — SearXNG fallback (no Tavily key)', () => {
   it('returns generic no-results when SearXNG responds non-2xx', async () => {
     globalThis.fetch = async () => ({ ok: false, status: 503 });
     const result = await webSearch({ query: 'test' });
-    assert.equal(result, 'No results found for "test".');
+    assert.match(result, /Search unavailable.*does not establish/);
   });
 
   it('returns generic no-results when SearXNG errors out', async () => {
     globalThis.fetch = async () => { throw new Error('Network timeout'); };
     const result = await webSearch({ query: 'test' });
-    assert.equal(result, 'No results found for "test".');
+    assert.match(result, /Search unavailable.*does not establish/);
   });
 
   it('returns generic no-results on fetch AbortError', async () => {
@@ -95,13 +95,13 @@ describe('webSearch — SearXNG fallback (no Tavily key)', () => {
       const err = new Error('aborted'); err.name = 'AbortError'; throw err;
     };
     const result = await webSearch({ query: 'test' });
-    assert.equal(result, 'No results found for "test".');
+    assert.match(result, /Search unavailable.*does not establish/);
   });
 
   it('returns no-results message when SearXNG returns empty list', async () => {
     globalThis.fetch = async () => ({ ok: true, json: async () => ({ results: [] }) });
     const result = await webSearch({ query: 'obscure nonsense' });
-    assert.equal(result, 'No results found for "obscure nonsense".');
+    assert.match(result, /no usable results.*does not establish/);
   });
 
   it('encodes query parameter in URL', async () => {

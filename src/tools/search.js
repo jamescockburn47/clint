@@ -235,5 +235,5 @@ export async function webSearch({ query, count }) {
   const searxngResult = await searchSearxng(query, n);
   if (searxngResult) return searxngResult;
 
-  return `No results found for "${query}".`;
+  return 'Search unavailable or returned no usable results. This does not establish that no relevant sources exist.';
 }

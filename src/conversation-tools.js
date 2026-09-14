@@ -4,6 +4,8 @@ import { KNOWLEDGE_NAMES, knowledgeAllowed } from './knowledge/tools.js';
 import { repositoryAllowed } from './knowledge/repository.js';
 import { runtimeStatusAllowed } from './runtime-status.js';
 import config from './config.js';
+import { GOOGLE_READ_NAMES } from './tools/google-definitions.js';
+import { outboundQuerySafe } from './outbound-query.js';
 
 export const OWNER_ONLY_TOOLS = new Set(['gmail_search', 'gmail_read', 'gmail_draft', 'gmail_confirm_send',
   'soul_propose', 'soul_confirm', 'soul_learn', 'soul_forget', 'calendar_create_event', 'calendar_update_event',
@@ -23,14 +25,16 @@ export function permitsTool(name, input, scope = currentConversation(), core = c
   if (name === 'system_status' && scope?.transport === 'slack') return runtimeStatusAllowed(scope);
   if (name === 'repository_status') return repositoryAllowed(scope);
   if (KNOWLEDGE_NAMES.includes(name)) return knowledgeAllowed(scope);
-  // Archive-capable inference must not turn private source text into an external tool query.
-  if (knowledgeAllowed(scope) && ['web_search', 'web_fetch', 'live_briefing',
+  // Owner authorizes contextual web research; cloud synthesis and unrelated services remain excluded.
+  if (knowledgeAllowed(scope) && ['live_briefing',
     'sovren_site_access', 'lqc_knowledge', 'lqc_status'].includes(name)) return false;
+  if (GOOGLE_READ_NAMES.includes(name)) return knowledgeAllowed(scope);
   if (!scope) return true; // Legacy background jobs have a separate trusted invocation contract.
   if (scope.audience === 'unknown' || !scope.actorId) return false;
   if (input !== undefined && ['web_search', 'web_fetch'].includes(name)) {
     let text = String(name === 'web_search' ? input?.query || '' : input?.url || '');
-    try { text = decodeURIComponent(text); } catch { return false; }
+    if (!outboundQuerySafe(text, core)) return false;
+    try { text = decodeURIComponent(text); } catch { /* Plain search text may contain a literal percent. */ }
     if (!filterResponse(text, scope.conversationId).safe) return false;
   }
   if (scope.webOnly) return name === 'web_search' || name === 'web_fetch';

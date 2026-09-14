@@ -142,7 +142,7 @@ describe('webSearch — Tavily primary', () => {
     const webSearch = await loadWithTavilyKey();
     globalThis.fetch = async () => ({ ok: true, json: async () => ({ results: [] }) });
     const result = await webSearch({ query: 'nothing' });
-    assert.equal(result, 'No results found for "nothing".');
+    assert.match(result, /no usable results.*does not establish/);
   });
 
   it('truncates oversized Tavily content to the per-result cap', async () => {

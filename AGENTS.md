@@ -14,9 +14,13 @@ not implemented. Do not present policy v1 below as the finished learning capabil
 Keep existing safeguards until replacements pass.
 
 The separate minimal-prompt pilot has been replaced in source by a shared-core
-`src/slack/model.js` adapter. Release `c1335e8c0868bab2` (v5) is running on the EVO with
-boot startup enabled. Its service identity, archive access, private membership and fresh
-runtime observations passed live checks; post-upgrade owner-message delivery is pending.
+`src/slack/model.js` adapter. Release `55be63c56583b5e1` (v7) is running on the EVO with
+boot startup enabled. At 18:15 UTC on 14 September its effective process configuration
+and fresh server props confirmed Flash Next. The bounded owner-test controller expires
+at about 19:04 UK time on 15 September and restores the original Qwen/embedding/Slack
+services on exit; a root-owned boot recovery unit covers reboot after the original
+gateway was explicitly stopped. Private membership and both read-only archive mounts
+passed live checks; James subsequently tested capability descriptions through Slack.
 The prior v4 release established actual Slack delivery/restart recall. See
 `docs/clint-existing-control-audit.md`. Do not replace live EVO group policies with
 repository defaults, or treat a non-WhatsApp ID as a private owner conversation.
@@ -93,15 +97,16 @@ Two added legacy lines in each of claude.js and tools/handler.js connect the new
 runtime module; their exact size ceilings increase by two. Rollback restores configuration
 and archive selection with code while retaining compatible acknowledged inbox events.
 The private archive is now enabled under open policy with exactly James and Clint in
-the private unshared channel; general web tools are denied in archive-capable requests.
+the private unshared channel; the original blanket web restriction is superseded below.
 Mandatory read-only binds protect both archive aliases. The external systemd unit was
 corrected after installation; the application release remains unchanged. See the unit
 correction and actual namespace evidence in `../evidence/updated-slack-live-proof-20260914.json`.
 Actual technical-description output passed independent comparison with its tool payload.
 The broader capability screen still failed on file-input and background-learning claims;
 owner testing is explicitly imperfect. Do not tune again against that small screen.
-Flash Next remains an active candidate: test the real adapter under the frozen next-trial
-plan, preserving earlier failures. No Flash inference job is currently running.
+Flash Next is now active for the separately authorized imperfect owner trial; preserve
+the failed diagnostics rather than treating successful activation as accuracy acceptance.
+The model runs inside the bounded evo-job owner controller with embeddings also active.
 
 14 September v6 candidate: the first Flash actual-adapter screen failed overall despite
 working JSON, status reads and action denial. Slack now excludes seeded project tools,
@@ -125,8 +130,31 @@ which is not semantic acceptance, general rollout or reliable mirroring.
 New owner requests: persistent deep Slack teaching and a small bounded gate for simple
 social/capability replies. Neither feature is implemented by this configuration correction.
 
+14 September gate groundwork: independent CPU-only Qwen3.5-0.8B and 2B Q8_0 screens
+both failed routing despite passing the declared latency target. The 0.8B missed
+four required escalations; the fresh 2B screen missed two, including a teaching
+request and a routing injection. Do not call these passing gates or compare their
+aggregate scores as paired accuracy. Both temporary containers were stopped;
+Flash's v7 owner trial remains active. A finite admission/renderer prototype exists
+outside this repo; its initial context boundary also failed. Its corrected form
+declines all prior conversation, so it is not a contextual gate replacement and
+model confirmation is redundant. Neither prototype is deployed. Preserve the
+reports and reassessment in `../evidence/slack-teaching-and-gate-plan-20260914.md`;
+do not keep scaling models or tuning prompts against these exposed questions.
+
 - Tier A: channel authentication, memory provenance and autonomous execution.
   Fresh independent review is required before release.
+
+14 September v8 owner instruction: enable contextual public-web research plus live Google
+Calendar and Drive reads in the owner-only private Slack path. Do not inherit Gmail or
+cloud inference capabilities. Source text can inform search queries; deterministic outbound
+guards reject recognizable/configured credentials, and public fetch retains its SSRF boundary.
+Google reads use fixed endpoints, pagination, source dates and explicit failure states.
+Drive text reads currently support Google Docs, Slides and UTF-8 text; other formats are
+explicitly unsupported, not claimed as read. A new OAuth grant requires James's Google consent.
+Two legacy import lines wire isolated Google modules into definitions/handler; ceilings
+increase by exactly one each. Do not change the pinned v7 lease's release/configuration:
+recover it before installing v8 and re-arm Flash with newly reviewed pins.
 - Preserve the live EVO checkout's uncommitted integrations. Source-only inventory
   is outside this worktree at `../evidence/evo-source`; no runtime data is a fixture.
 - No external messages, credential resets, production changes, commits or pushes

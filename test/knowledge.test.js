@@ -43,9 +43,11 @@ test('missing or nonprivate authority rejects before opening archive, including 
       query: () => assert.fail('unauthorized read') })).state, 'not_authorized');
   }
   assert.equal(permitsTool('knowledge_search', {}, scope({})), true);
-  for (const name of ['web_search', 'web_fetch', 'live_briefing', 'lqc_knowledge']) {
+  for (const name of ['live_briefing', 'lqc_knowledge']) {
     assert.equal(permitsTool(name, { query: 'private source text' }, scope({})), false);
   }
+  assert.equal(permitsTool('web_search', { query: 'contextual research' }, scope({})), true);
+  assert.equal(permitsTool('web_fetch', { url: 'https://example.com' }, scope({})), true);
 });
 
 test('failed/duplicate/empty imports preserve existing snapshot and never publish partial data', async t => {

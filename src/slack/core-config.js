@@ -1,6 +1,5 @@
 /** Startup contract: the planner/classifier/memory singleton must use the same local runtime. */
-const CLOUD_CREDENTIAL_FIELDS = ['anthropicApiKey', 'minimaxApiKey', 'googleRefreshToken',
-  'tavilyApiKey', 'braveApiKey', 'perplexityApiKey'];
+const CLOUD_CREDENTIAL_FIELDS = ['anthropicApiKey', 'minimaxApiKey', 'braveApiKey', 'perplexityApiKey'];
 
 export function validateSlackCoreConfig(core, slack) {
   if (core.evoLlmUrl.replace(/\/$/, '') !== slack.modelUrl.replace(/\/$/, '') ||
@@ -14,5 +13,9 @@ export function validateSlackCoreConfig(core, slack) {
   // This process is a separate service; credential inheritance must be intentional.
   if (CLOUD_CREDENTIAL_FIELDS.some(field => core[field])) {
     throw new Error('slack_core_unexpected_cloud_credentials');
+  }
+  // Owner authorized Tavily search and fixed Google read APIs; neither permits cloud model fallback.
+  if (core.tavilyApiKey && core.tavilyBaseUrl !== 'https://api.tavily.com') {
+    throw new Error('slack_core_unexpected_search_endpoint');
   }
 }
