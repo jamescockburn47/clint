@@ -113,6 +113,18 @@ source paths rather than adding answer-specific prompt examples. Preserve the si
 failure and use the independently frozen four-case revision screen once. These source
 changes are not deployed merely because deterministic tests pass.
 
+14 September v7 configuration correction: the v6 owner Flash activation loaded Flash
+and embeddings together, but the real Slack startup rejected the Flash model name.
+The synthetic adapter harness had supplied a constructed config, missing the startup
+literal restriction. v7 adds only the reviewed Flash alias to the Slack configuration
+allowlist and tests the actual loadSlackConfig boundary. Preserve the failed activation
+and its successful automatic Qwen/embedding/Slack recovery. The four-case v6 diagnostic
+remains failed (correct measured values plus an unsupported MemAvailable explanation);
+three other cases passed. James separately authorized imperfect owner-only Flash testing,
+which is not semantic acceptance, general rollout or reliable mirroring.
+New owner requests: persistent deep Slack teaching and a small bounded gate for simple
+social/capability replies. Neither feature is implemented by this configuration correction.
+
 - Tier A: channel authentication, memory provenance and autonomous execution.
   Fresh independent review is required before release.
 - Preserve the live EVO checkout's uncommitted integrations. Source-only inventory

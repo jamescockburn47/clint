@@ -23,7 +23,7 @@ const schema = z.object({
     return url.protocol === 'http:' && url.hostname === '127.0.0.1' &&
       !url.username && !url.password && !url.search && !url.hash && url.pathname === '/';
   }),
-  SLACK_MODEL_ID: z.literal('qwen3.8-27b').default('qwen3.8-27b'),
+  SLACK_MODEL_ID: z.enum(['qwen3.8-27b', 'qwen3.8-flash-next']).default('qwen3.8-27b'),
 });
 
 /** Dedicated configuration boundary: never inherit the legacy bot's credentials. */
