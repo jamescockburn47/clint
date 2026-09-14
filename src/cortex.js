@@ -166,7 +166,7 @@ export async function gatherIntelligence(context, hasImage, isGroup, options = {
   }
 
   // System snapshot — only for SYSTEM queries
-  if (category === CATEGORY.SYSTEM && permitsPrivateContext()) {
+  if (category === CATEGORY.SYSTEM && permitsPrivateContext() && currentConversation()?.transport !== 'slack') {
     streams.system = getLiveSystemSnapshot().catch(err => {
       logger.warn({ err: err.message }, 'cortex: system snapshot failed');
       return '';

@@ -1,5 +1,9 @@
 import { currentConversation, permitsProject } from './conversation-context.js';
 import { filterResponse } from './output-filter.js';
+import { KNOWLEDGE_NAMES, knowledgeAllowed } from './knowledge/tools.js';
+import { repositoryAllowed } from './knowledge/repository.js';
+import { runtimeStatusAllowed } from './runtime-status.js';
+import config from './config.js';
 
 export const OWNER_ONLY_TOOLS = new Set(['gmail_search', 'gmail_read', 'gmail_draft', 'gmail_confirm_send',
   'soul_propose', 'soul_confirm', 'soul_learn', 'soul_forget', 'calendar_create_event', 'calendar_update_event',
@@ -12,7 +16,14 @@ const PROJECT_READS = new Set(['project_read', 'project_pitch', 'project_list_fi
 const READ_ONLY_TOOLS = new Set([...PUBLIC_READS, 'soul_read']);
 
 /** One execution predicate shared by schema selection, ordinary calls and planner steps. */
-export function permitsTool(name, input, scope = currentConversation()) {
+export function permitsTool(name, input, scope = currentConversation(), core = config) {
+  if (scope?.transport === 'slack' && name.startsWith('memory_') && !core.evoMemoryEnabled) return false;
+  if (name === 'system_status' && scope?.transport === 'slack') return runtimeStatusAllowed(scope);
+  if (name === 'repository_status') return repositoryAllowed(scope);
+  if (KNOWLEDGE_NAMES.includes(name)) return knowledgeAllowed(scope);
+  // Archive-capable inference must not turn private source text into an external tool query.
+  if (knowledgeAllowed(scope) && ['web_search', 'web_fetch', 'live_briefing',
+    'sovren_site_access', 'lqc_knowledge', 'lqc_status'].includes(name)) return false;
   if (!scope) return true; // Legacy background jobs have a separate trusted invocation contract.
   if (scope.audience === 'unknown' || !scope.actorId) return false;
   if (input !== undefined && ['web_search', 'web_fetch'].includes(name)) {

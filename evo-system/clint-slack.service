@@ -23,6 +23,7 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 BindPaths=/var/lib/clint-slack/data:/opt/clint-slack/current/data
+ReadOnlyPaths=-/var/lib/clint-slack/data/knowledge -/opt/clint-slack/current/data/knowledge
 PrivateTmp=yes
 PrivateDevices=yes
 ProtectKernelTunables=yes

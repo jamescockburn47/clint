@@ -1,5 +1,5 @@
-// Tool definitions for Claude tool_use
-export const TOOL_DEFINITIONS = [
+import { KNOWLEDGE_DEFINITIONS } from '../knowledge/tools.js';
+export const TOOL_DEFINITIONS = [ ...KNOWLEDGE_DEFINITIONS,
   {
     name: 'spire_presence',
     description: "Who is inside THE SPIRE right now — the Legal Quants' 3D venue at spire.lquorum.blog (floors: lobby, chambers, council, auditorium, garden, arcade, library, oracle). Returns live people and agents by floor from the venue itself. Use for 'anyone in the spire', 'who's in the venue', 'is anyone online in the spire'. The Spire is NOT one of the steads games — Moorstead/Saltstead/Marsstead questions use steads_status instead.",
@@ -637,7 +637,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'system_status',
-    description: 'Get the current status of the Clint system — uptime, memory, WhatsApp connection, EVO X2 health.',
+    description: 'Read fresh runtime observations: current model server report, release, CPU, Linux-managed RAM and GPU allocation. Timestamped; unavailable fields remain unknown. Does not generate, change or load a model. Use for questions about your setup or capabilities.',
     input_schema: {
       type: 'object',
       properties: {},

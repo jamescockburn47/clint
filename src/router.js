@@ -13,7 +13,7 @@ export { CATEGORY };
 
 // --- Static routing tables ---
 
-const WEB_TOOLS = new Set(['web_search', 'web_fetch']);
+const AVAILABLE_READ_TOOLS = new Set(['system_status', 'web_search', 'web_fetch', 'knowledge_search', 'knowledge_read', 'knowledge_status', 'repository_status']);
 
 const CATEGORY_TOOLS = {
   [CATEGORY.CALENDAR]: new Set(['calendar_list_events', 'calendar_create_event', 'calendar_update_event', 'calendar_find_free_time']),
@@ -232,7 +232,7 @@ export { RouterService };
 export function getToolsForCategory(category, allTools) {
   const allowed = CATEGORY_TOOLS[category];
   if (allowed === null) return allTools;
-  return allTools.filter(t => allowed.has(t.name) || WEB_TOOLS.has(t.name));
+  return allTools.filter(t => allowed.has(t.name) || AVAILABLE_READ_TOOLS.has(t.name));
 }
 export function needsMemories(category) { return MEMORY_CATEGORIES.has(category); }
 export function mustUseClaude(category) { return CLAUDE_CATEGORIES.has(category); }

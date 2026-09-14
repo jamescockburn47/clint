@@ -4,6 +4,7 @@
 import { randomUUID } from 'crypto';
 import config from './config.js';
 import logger from './logger.js';
+import { safeErrorCode } from './error-code.js';
 import { PLANNING } from './constants.js';
 import { TOOL_DEFINITIONS } from './tools/definitions.js';
 import { executeTool } from './tools/handler.js';
@@ -499,7 +500,7 @@ export async function executeStep(step, completedSteps, senderJid, chatJid) {
     step.error = err.message;
     step.completedAt = new Date().toISOString();
     step.timeMs = Date.now() - new Date(startedAt).getTime();
-    logger.warn({ tool: step.tool, stepId: step.step_id, err: String(err.message || 'error').split('\n')[0].slice(0, 160) }, 'plan step failed');
+    logger.warn({ tool: step.tool, stepId: step.step_id, err: safeErrorCode(err) }, 'plan step failed');
     return false;
   }
 }

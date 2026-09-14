@@ -2,7 +2,7 @@ import { LLMService } from '../claude.js';
 import { createConversationContext } from '../conversation-context.js';
 import { isControlReply } from './policy.js';
 
-export const SLACK_PROMPT_VERSION = 'clint-shared-core-v4';
+export const SLACK_PROMPT_VERSION = 'clint-shared-core-v5';
 
 /** Transport formatting only. Identity, personality, recall, tools and filters live in Clint's core. */
 export function makeSlackGenerator(config, service = new LLMService({
@@ -33,6 +33,7 @@ export function makeSlackGenerator(config, service = new LLMService({
     }
     // An unavailable core is transient and must not consume delivery attempts; malformed output is terminal.
     if (!result || result.meta?.provider === 'unavailable') throw new Error('slack_core_unavailable');
+    if (result.meta?.truncated) throw new Error('slack_incomplete_core_output');
     if (!result.text || isControlReply(result.text) || result.text.length > 10000) {
       throw new Error('slack_invalid_core_output');
     }

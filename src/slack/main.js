@@ -1,7 +1,8 @@
 import { SocketModeClient } from '@slack/socket-mode';
 import { WebClient } from '@slack/web-api';
 import { loadSlackConfig } from './config.js';
-import { acceptMention, allowedChannel } from './policy.js';
+import { acceptMention } from './policy.js';
+import { authorizeChannel } from './channel-access.js';
 import { SlackStore } from './store.js';
 import { SlackWorker, errorCode } from './worker.js';
 import { makeSlackGenerator, SLACK_PROMPT_VERSION } from './model.js';
@@ -18,7 +19,7 @@ const sdkLogger = { debug() {}, info() {}, warn() { report('sdk_warning'); },
 let shutdown = code => process.exit(code);
 
 async function main() {
-  const config = loadSlackConfig();
+  let config = loadSlackConfig();
   validateSlackCoreConfig(coreConfig, config);
   await checkEvoHealth({ recover: false });
   const web = new WebClient(config.botToken, { logger: sdkLogger, retryConfig: { retries: 0 },
@@ -26,7 +27,8 @@ async function main() {
   const auth = await web.auth.test();
   if (!auth.ok || auth.team_id !== config.teamId || !auth.bot_id || !auth.user_id ||
       auth.user_id === config.ownerId) throw new Error('slack_wrong_installation');
-  if (!allowedChannel(await web.conversations.info({ channel: config.channelId }), config)) {
+  config = Object.freeze({ ...config, botUserId: auth.user_id });
+  if (!await authorizeChannel(web, config)) {
     throw new Error('slack_channel_not_ready');
   }
   const store = new SlackStore(config.dataDir);

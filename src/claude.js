@@ -3,6 +3,7 @@ import config from './config.js';
 import { createQwenChatClient } from './qwen-chat.js';
 import { getSystemPrompt } from './prompt.js';
 import { TOOL_DEFINITIONS } from './tools/definitions.js';
+import { capabilityPrompt } from './runtime-status.js';
 import { executeTool } from './tools/handler.js';
 import { getToolsForCategory, mustUseClaude, CATEGORY } from './router.js';
 import { analyseImage } from './memory.js';
@@ -17,6 +18,8 @@ import { trackTokens, checkDailyLimit, incrementDailyCalls, getDailyCalls, recor
 import { shouldCritique, runCritique } from './quality-gate.js';
 import { createRequestId } from './request-id.js';
 import logger from './logger.js';
+import { safeErrorCode } from './error-code.js';
+import { boundToolResult } from './tool-result.js';
 import { currentConversation, isGroupConversation } from './conversation-context.js';
 import { OWNER_ONLY_TOOLS } from './conversation-tools.js';
 import { scopedResponse } from './conversation-response.js';
@@ -25,7 +28,6 @@ export { getUsageStats, flushUsage };
 
 const CLAUDE_REQUEST_PATTERNS = /\b(?:ask claude|use claude|use opus|ask opus|claude only|opus only)\b/i;
 const GROUP_MODE_TOOLS = TOOL_DEFINITIONS.filter(t => ['memory_search', 'web_search', 'web_fetch'].includes(t.name));
-const MAX_TOOL_RESULT = 1500;
 // The only tools a public-venue speaker (the Spire floor) may reach: public-web
 // lookups. Everything else — memory_search, soul_read, todos, projects, sovren —
 // can surface owner-private material, so it is withheld from venue interactions.
@@ -338,7 +340,7 @@ class LLMService {
           ? await executeTool(toolUse.name, toolUse.input, senderJid, chatJid)
           : 'Tool denied: it was not offered for this request.';
         logger.info({ requestId, tool: toolName, chars: result.length }, 'tool result');
-        if (result.length > MAX_TOOL_RESULT) result = result.slice(0, MAX_TOOL_RESULT) + '\n[...truncated]';
+        result = boundToolResult(toolName, result);
         toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: result });
       }
       messages.push({ role: 'user', content: toolResults });
@@ -480,6 +482,7 @@ class LLMService {
       const system = [{
         type: 'text',
         text: getSystemPrompt(mode, isOwner, isGroup, category, chatJid)
+          + capabilityPrompt(selectedTools)
           + projectScopeFragment
           + memoryFragment
           + ambientSuffix
@@ -630,7 +633,7 @@ class LLMService {
         return { text: 'Claude API is overloaded. Try again shortly.', meta: null };
       }
       // Error class only: prompts and model output never reach the log line.
-      logger.error({ requestId, status, err: String(err?.message || err?.code || 'error').split('\n')[0].slice(0, 160) }, 'API error');
+      logger.error({ requestId, status, err: safeErrorCode(err) }, 'API error');
       return { text: null, meta: null };
     }
   }
@@ -671,7 +674,7 @@ class LLMService {
           let result = tools.some(t => t.name === toolUse.name)
             ? await executeTool(toolUse.name, toolUse.input, senderJid, chatJid)
             : 'Tool denied: it was not offered for this request.';
-          if (result.length > MAX_TOOL_RESULT) result = result.slice(0, MAX_TOOL_RESULT) + '\n[...truncated]';
+          result = boundToolResult(toolUse.name, result);
           toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: result });
         }
         messages.push({ role: 'user', content: toolResults });

@@ -2,7 +2,7 @@
 
 ## Current status
 
-Update 14 September 2026 (protocol `clint-shared-core-v4`): WhatsApp is decommissioned;
+Update 14 September 2026 (protocol `clint-shared-core-v4`, release `1bef73fd6eab11dc`, deployed by the reviewed `--upgrade` path; controlled restart kept all 8 inbox rows with no duplicate delivery): WhatsApp is decommissioned;
 Slack is the only conversational transport. Adapter changes, each with tests:
 
 - An unavailable local core (`provider: unavailable`, open circuit breaker) no longer

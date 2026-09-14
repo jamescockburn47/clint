@@ -49,7 +49,7 @@ class MemoryClient {
 
     // Load cache on construction
     try {
-      if (existsSync(CACHE_FILE)) {
+      if (this._enabled && existsSync(CACHE_FILE)) {
         const data = JSON.parse(readFileSync(CACHE_FILE, 'utf-8'));
         this._cache = data.memories || [];
         this._cacheTimestamp = data.timestamp || 0;
@@ -62,6 +62,7 @@ class MemoryClient {
 
   /** @returns {Promise<unknown>} Fetch parsed JSON from memory service. Validate at each consumer boundary. */
   _fetch(path, options = {}) {
+    if (!this._enabled) throw new Error('memory_disabled');
     return this._fetchJSON(`${this._memoryUrl}${path}`, options);
   }
 
@@ -162,6 +163,7 @@ class MemoryClient {
   }
 
   async storeNote(text, source = 'manual_note') {
+    if (!this._enabled) return { stored: false, offline: true, disabled: true };
     if (this._online) {
       try {
         return await this._fetch('/note', {
@@ -507,6 +509,7 @@ class MemoryClient {
   // --- Cache sync ---
 
   async syncCache() {
+    if (!this._enabled) return;
     try {
       const data = await this._fetch('/memory/list', { timeout: TIMEOUTS.MEMORY_SEARCH });
       this._cache = data.memories || [];

@@ -2,6 +2,7 @@
 import { mkdir, open, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { queryEvents, appendEvent } from './events.js';
+import { safeErrorCode } from '../error-code.js';
 
 export interface LearningWorkerOptions {
   date: string;
@@ -15,9 +16,7 @@ export interface LearningWorkerOptions {
 
 /** Error class or code for the event log: single line, bounded, never source text. */
 export function failureCode(err: unknown): string {
-  const e = err as { code?: unknown; message?: unknown; name?: unknown } | null;
-  const text = String(e?.code ?? e?.message ?? e?.name ?? 'unknown_error').split('\n')[0]!.trim();
-  return text.slice(0, 120) || 'unknown_error';
+  return safeErrorCode(err);
 }
 
 /** Run once for a date. Interrupted locks require inspection, never automatic deletion. */

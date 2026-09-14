@@ -39,5 +39,6 @@ export function replyPayload(event, text) {
 }
 
 export function isControlReply(text) {
-  return /^\s*\[(?:INVALID|SILENT|APPROVED)\][.!]?\s*$/i.test(text);
+  return /^\s*\[(?:INVALID|SILENT|APPROVED)\][.!]?\s*$/i.test(text) ||
+    /<\/?(?:think|analysis)\b[^>]*>/i.test(text);
 }

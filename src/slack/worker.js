@@ -1,4 +1,6 @@
-import { allowedChannel, replyPayload } from './policy.js';
+import { replyPayload } from './policy.js';
+import { authorizeChannel } from './channel-access.js';
+import { safeErrorCode } from '../error-code.js';
 
 /** How long a message may wait for an unavailable core before it is given up and the owner told. */
 export const CORE_WAIT_LIMIT_MS = 6 * 60 * 60 * 1000;
@@ -6,8 +8,9 @@ const NOTICE_PREFIX = 'Clint could not answer this message';
 
 /** Short, source-free error code for journal lines. */
 export function errorCode(err) {
-  const text = String(err?.message || err?.code || 'error');
-  return /^[\w:.-]{1,80}$/.test(text) ? text : (err?.name || 'error');
+  const known = new Set(['slack_core_unavailable', 'slack_incomplete_core_output',
+    'slack_invalid_core_output', 'slack_invalid_reply', 'slack_send_unconfirmed']);
+  return known.has(err?.message) ? err.message : safeErrorCode(err);
 }
 
 /** Slack's SDK distinguishes definitive platform refusals from unknown transport outcomes. */
@@ -31,6 +34,11 @@ export class SlackWorker {
   /** Best-effort thread notice so a dropped message is never silent. Never carries source or error text. */
   async notify(event, reason) {
     try {
+      if (event.team !== this.config.teamId || event.channel !== this.config.channelId ||
+          event.owner !== this.config.ownerId ||
+          !await authorizeChannel(this.web, this.config)) {
+        this.report('notice_scope_changed'); return;
+      }
       await this.web.chat.postMessage({ channel: event.channel, thread_ts: event.thread,
         text: `${NOTICE_PREFIX} (${reason}). It will not be retried.`,
         unfurl_links: false, unfurl_media: false, parse: 'none' });
@@ -44,8 +52,7 @@ export class SlackWorker {
         this.store.setState(event.id, 'blocked', 'scope_changed'); continue;
       }
       try {
-        const info = await this.web.conversations.info({ channel: event.channel });
-        if (!allowedChannel(info, this.config)) {
+        if (!await authorizeChannel(this.web, this.config)) {
           this.store.setState(event.id, 'blocked', 'channel_not_private_local'); continue;
         }
       } catch (err) {
@@ -74,7 +81,7 @@ export class SlackWorker {
       }
       // Recheck sharing immediately before outbound delivery, after potentially slow generation.
       try {
-        if (!allowedChannel(await this.web.conversations.info({ channel: event.channel }), this.config)) {
+        if (!await authorizeChannel(this.web, this.config)) {
           this.store.setState(event.id, 'blocked', 'channel_changed_before_send'); continue;
         }
       } catch (err) { this.report('channel_check_failed', errorCode(err)); return; }
@@ -93,7 +100,9 @@ export class SlackWorker {
           this.store.setState(event.id, 'ready', 'rate_limited'); this.report('delivery_rate_limited'); return;
         }
         if (outcome === 'rejected') {
-          const reason = `slack_rejected:${err.data.error}`;
+          const known = new Set(['invalid_blocks', 'msg_too_long', 'not_in_channel',
+            'channel_not_found', 'is_archived', 'restricted_action', 'missing_scope', 'invalid_auth']);
+          const reason = `slack_rejected:${known.has(err.data.error) ? err.data.error : 'platform_error'}`;
           this.store.setState(event.id, 'failed', reason); this.report('delivery_rejected', reason);
           await this.notify(event, 'Slack refused the reply'); continue;
         }

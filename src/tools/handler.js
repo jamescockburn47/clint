@@ -1,5 +1,5 @@
-// Tool execution dispatcher — routes Claude tool calls to handlers
 import { calendarListEvents, calendarCreateEvent, calendarUpdateEvent, calendarFindFreeTime } from './calendar.js';
+import { KNOWLEDGE_HANDLERS } from '../knowledge/tools.js';
 import { gmailSearch, gmailRead, gmailDraft, gmailConfirmSend } from './gmail.js';
 import { searchTrains, searchAccommodation } from './travel.js';
 import { trainDepartures, trainFares } from './darwin.js';
@@ -36,6 +36,7 @@ import config from '../config.js';
 import logger from '../logger.js';
 import { currentConversation, isGroupConversation } from '../conversation-context.js';
 import { permitsTool } from '../conversation-tools.js';
+import { systemStatus } from '../runtime-status.js';
 
 // --- Prefetch-aware web search ---
 async function webSearch(input) {
@@ -70,6 +71,7 @@ async function memoryDeleteHandler(input) {
 }
 
 async function systemStatusHandler() {
+  if (currentConversation()?.transport === 'slack') return systemStatus();
   const uptime = process.uptime();
   const mem = process.memoryUsage();
   const hours = Math.floor(uptime / 3600);
@@ -135,7 +137,7 @@ async function sendFileHandler(input) {
 
 // --- Tool registry (dispatch map) ---
 
-const TOOL_MAP = new Map([
+const TOOL_MAP = new Map([ ...KNOWLEDGE_HANDLERS,
   ['calendar_list_events', calendarListEvents],
   ['calendar_create_event', calendarCreateEvent],
   ['calendar_update_event', calendarUpdateEvent],

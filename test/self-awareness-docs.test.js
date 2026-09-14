@@ -2,6 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { getSystemPrompt } from '../src/prompt.js';
+import { createConversationContext, withConversationContext } from '../src/conversation-context.js';
 
 const ROOT = join(import.meta.dirname, '..');
 
@@ -48,10 +50,14 @@ describe('self-awareness source of truth', () => {
     assert.doesNotMatch(summary, /Daily retrospective at 4 AM|old nightly self-improvement cycle/i);
   });
 
-  it('prompt self-awareness states @mention-only across all groups', () => {
-    const prompt = readText('src/prompt.js');
-    assert.match(prompt, /mention\/prefix-only/i);
-    assert.doesNotMatch(prompt, /LQCore.*occasionally chip in unprompted/i);
-    assert.doesNotMatch(prompt, /ambient interventions/i);
+  it('Slack self-description follows its transport and refreshes runtime facts', () => {
+    const scope = createConversationContext({ transport: 'slack', conversationId: 'slack:test',
+      actorId: 'owner', ownerId: 'owner', audience: 'group', localOnly: true, readOnly: true,
+      policy: { mode: 'open' } });
+    const prompt = withConversationContext(scope, () => getSystemPrompt('professional', true, true, 'system', scope.conversationId));
+    assert.doesNotMatch(prompt, /mention\/prefix-only|this request uses local Qwen/);
+    assert.match(prompt, /Every incoming owner message is directed to you/);
+    assert.match(prompt, /Missing observations remain unknown/);
+    assert.match(prompt, /Slack DMs are not connected/);
   });
 });
