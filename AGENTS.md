@@ -14,8 +14,10 @@ not implemented. Do not present policy v1 below as the finished learning capabil
 Keep existing safeguards until replacements pass.
 
 The separate minimal-prompt pilot has been replaced in source by a shared-core
-`src/slack/model.js` adapter. Release `1bef73fd6eab11dc` (v4) is running on the EVO with
-boot startup enabled; controls and actual Slack delivery/restart recall were verified. See
+`src/slack/model.js` adapter. Release `c1335e8c0868bab2` (v5) is running on the EVO with
+boot startup enabled. Its service identity, archive access, private membership and fresh
+runtime observations passed live checks; post-upgrade owner-message delivery is pending.
+The prior v4 release established actual Slack delivery/restart recall. See
 `docs/clint-existing-control-audit.md`. Do not replace live EVO group policies with
 repository defaults, or treat a non-WhatsApp ID as a private owner conversation.
 James's messages in `clint-private` no longer require mentions; the exact
@@ -90,6 +92,26 @@ observations govern capability descriptions; never infer service health from a n
 Two added legacy lines in each of claude.js and tools/handler.js connect the new bounded
 runtime module; their exact size ceilings increase by two. Rollback restores configuration
 and archive selection with code while retaining compatible acknowledged inbox events.
+The private archive is now enabled under open policy with exactly James and Clint in
+the private unshared channel; general web tools are denied in archive-capable requests.
+Mandatory read-only binds protect both archive aliases. The external systemd unit was
+corrected after installation; the application release remains unchanged. See the unit
+correction and actual namespace evidence in `../evidence/updated-slack-live-proof-20260914.json`.
+Actual technical-description output passed independent comparison with its tool payload.
+The broader capability screen still failed on file-input and background-learning claims;
+owner testing is explicitly imperfect. Do not tune again against that small screen.
+Flash Next remains an active candidate: test the real adapter under the frozen next-trial
+plan, preserving earlier failures. No Flash inference job is currently running.
+
+14 September v6 candidate: the first Flash actual-adapter screen failed overall despite
+working JSON, status reads and action denial. Slack now excludes seeded project tools,
+project-scope text and the legacy LQuorum shelf; dated archives and registered repository
+observations remain available. Read-only Slack uses the ordinary bounded tool loop without
+the separate autonomous task planner. Its prompt assembly excludes the legacy admin/tool
+capability block, local-summary self-attribution and LQ guide. This removes contradictory
+source paths rather than adding answer-specific prompt examples. Preserve the six-case
+failure and use the independently frozen four-case revision screen once. These source
+changes are not deployed merely because deterministic tests pass.
 
 - Tier A: channel authentication, memory provenance and autonomous execution.
   Fresh independent review is required before release.

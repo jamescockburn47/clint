@@ -126,7 +126,7 @@ export async function gatherIntelligence(context, hasImage, isGroup, options = {
   const streams = {};
 
   // LQuorum — synchronous, near-instant, always worth doing
-  if (permitsPrivateContext()) warmFromQuery(context);
+  if (permitsPrivateContext() && currentConversation()?.transport !== 'slack') warmFromQuery(context);
 
   // Relevant memories — always fetched when in a project-bound group so
   // that group-specific docs + prior-conversation insights surface on
@@ -232,7 +232,7 @@ export async function gatherIntelligence(context, hasImage, isGroup, options = {
   }
 
   // LQuorum working knowledge
-  const lquorumContext = permitsPrivateContext() ? getWorkingKnowledge() : '';
+  const lquorumContext = permitsPrivateContext() && currentConversation()?.transport !== 'slack' ? getWorkingKnowledge() : '';
   if (lquorumContext) {
     const budget = Math.min(SECTION_BUDGETS.lquorum, TOTAL_BUDGET - usedBudget);
     const capped = capSection(lquorumContext, budget);

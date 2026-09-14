@@ -1,6 +1,7 @@
 import { getGroupConfig } from './group-registry.js';
 import { getProjectById } from './tools/projects.js';
 import logger from './logger.js';
+import { currentConversation } from './conversation-context.js';
 
 const DEFAULT_OFFTOPIC_POLICY = 'allow';
 const MAX_SUMMARY_CHARS = 1400;
@@ -80,6 +81,7 @@ function buildProjectKnowledge(project) {
  * Keeps logic lightweight and deterministic: no network calls and no extra retrieval pass.
  */
 export function buildProjectScopePrompt(chatJid, contextText) {
+  if (currentConversation()?.transport === 'slack') return '';
   const groupConfig = getGroupConfig(chatJid);
   const allowedProjects = Array.isArray(groupConfig?.allowedProjects)
     ? groupConfig.allowedProjects.filter(Boolean)

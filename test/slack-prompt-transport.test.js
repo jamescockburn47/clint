@@ -17,6 +17,7 @@ test('Slack has no contradictory legacy DM capability or WhatsApp notification i
     assert.doesNotMatch(prompt, /## How to work with James|## Concrete calibration/,
       'the failed experimental personality profile must remain outside the release prompt');
     assert.doesNotMatch(prompt, /Reminders send a WhatsApp|## EMAIL RULES|## TRAVEL TOOLS|mention\/prefix-only/);
+    assert.doesNotMatch(prompt, /READING is always safe|search and read emails\/calendar freely|check your calendar|then you summarised it|## LQ BOT COUNCIL — DEV GROUP CONTEXT/);
     }
   }
 });

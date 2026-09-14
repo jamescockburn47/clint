@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createConversationContext as create, withConversationContext as within,
-  currentConversation, filterScopedMemories } from '../src/conversation-context.js';
+  currentConversation, filterScopedMemories, permitsProject } from '../src/conversation-context.js';
 import { permitsTool } from '../src/conversation-tools.js';
 import { scopedResponse } from '../src/conversation-response.js';
 import { getCanaryToken, filterResponse } from '../src/output-filter.js';
@@ -98,7 +98,9 @@ test('concurrent conversations retain separate policy across asynchronous work',
     conversationId: `slack:${id}`, policy: { mode: 'project', allowedProjects: [id] },
   }), async () => {
     await new Promise(resolve => setTimeout(resolve, id === 'first' ? 12 : 1));
-    assert.equal(permitsTool('project_read', { id }), true);
+    assert.equal(permitsProject(id), true);
+    assert.equal(permitsProject(id === 'first' ? 'second' : 'first'), false);
+    assert.equal(permitsTool('project_read', { id }), false);
     assert.equal(permitsTool('project_read', { id: id === 'first' ? 'second' : 'first' }), false);
   })));
 });

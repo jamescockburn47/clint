@@ -1,7 +1,12 @@
 # Clint: grounded personalization and live sources
 
-Candidate, not deployed. The running EVO remains release `1bef73fd6eab11dc` / v4.
-This change preserves the shared core and Slack transport; WhatsApp remains retired.
+Deployed for authorized owner testing on 14 September: release `c1335e8c0868bab2` / v5,
+on the existing Qwen backend. The private snapshot is enabled in the exact two-member
+`clint-private` channel. Source SHA, service-identity reads, both read-only archive mounts,
+Slack authentication/membership and fresh runtime observations passed live checks.
+The next owner message supplies the post-upgrade delivery probe; no test Slack message was sent.
+This preserves the shared core and Slack transport; WhatsApp remains retired. It does not
+establish complete or consistently correct recall, personality adaptation or live account access.
 
 ## Behavior
 
@@ -46,7 +51,7 @@ Import time never upgrades an older message's date or verifies that its contents
 This metadata is deterministic; model compliance with it still requires output evaluation.
 
 Private source snapshots stay outside Git at `../evidence/personalization/`. The v3 normalized
-JSONL and SQLite snapshot are the current candidates. These do not include non-text attachments,
+JSONL and SQLite snapshot are the current source snapshot; the SQLite copy is deployed. These do not include non-text attachments,
 model thinking/tool payloads or the inventoried local coding sessions. Originals remain intact.
 The full semantic analysis and cross-model reconciliation have not been completed. Indexing
 and a successful behavioral probe cannot substitute for that work.
@@ -62,7 +67,8 @@ Archive-capable requests cannot use general external web/search or council query
 is enforced in the common tool gate, including planner execution. The fixed GitHub lookup below
 remains allowed because source text cannot control its destination or arguments. If wider live
 research is needed alongside private archives, design a separate public-query boundary rather
-than removing this restriction. Current colleague mode retains its existing public research.
+than removing this restriction. Colleague mode retains public research, but the deployed
+private channel now uses open mode and therefore denies general external web tools.
 
 ## Actual live Git knowledge
 
@@ -124,13 +130,22 @@ Publication refuses existing destinations, validates every row and SQLite integr
 publishes atomically. On a failed normalization, any partial file is explicitly named partial;
 it does not replace an existing source or active index. Original text is never rewritten.
 
-The canonical source stage and upgrade path remain in `clint-slack-release.md`. Deploying this
-repair/source-access candidate, activating open/private archive context or copying its snapshot into the service's
-`data/knowledge/knowledge.sqlite` requires the owner's release authorization. Preserve v4,
-runtime/inbox backups and the previous archive snapshot; rollback restores the previous release
-and policy. No automatic learning, service timer or cloud corpus transfer is enabled by this change.
+The canonical source stage and upgrade path remain in `clint-slack-release.md`. James authorized
+the current build and private archive for testing. The installed snapshot has SHA-256
+`2936b3c93450c95b3b1565106c9a8b009c60705ac277f9600726fd8cec073a93`.
+Preserved v4, configuration, runtime/inbox and archive backups are under
+`/var/backups/clint-slack/c1335e8c0868bab2`. Rollback restores the previous release and policy,
+retaining compatible acknowledged inbox rows rather than overwriting new events.
+No automatic learning, service timer or cloud corpus transfer is enabled by this change.
 
-After approval, test the actual private Slack first-use journey: source question -> attributed
+During owner testing, inspect the actual private Slack first-use journey: source question -> attributed
 answer -> follow-up chunk/recall -> controlled restart, with no duplicate delivery. The synthetic
 probe is necessary behavioral evidence but is not that live Slack entry journey. Keep source
 correctness and privacy separate from James's judgment of whether a reply sounds like him.
+
+Fresh `system_status` now observes the serving alias, host/CPU, Linux-managed/available RAM,
+GPU allocation/use and current deployed release. Unmeasured installed physical capacity and
+gateway-hidden model build/context remain null. It does not load a model to inspect it.
+Independent actual-output review passed the technical answer against the captured tool result,
+but the wider capability screen still failed: file-input and background-learning claims exceeded
+the evidence. Preserve this split verdict. See `../evidence/independent-runtime-description-review-20260914.md`.

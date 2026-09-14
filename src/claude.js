@@ -407,7 +407,7 @@ class LLMService {
       : getToolsForCategory(category, tools);
 
     // Task planner
-    if (!merlinMode && route.needsPlan && (route.confidence || 0) >= PLANNING.MIN_CONFIDENCE) {
+    if (!merlinMode && !(currentConversation()?.transport === 'slack' && currentConversation()?.readOnly) && route.needsPlan && (route.confidence || 0) >= PLANNING.MIN_CONFIDENCE) {
       try {
         const { executePlan } = await import('./task-planner.js');
         const planResult = await executePlan(context, route, senderJid, chatJid, memoryFragment);

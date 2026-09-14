@@ -2,7 +2,7 @@ import { LLMService } from '../claude.js';
 import { createConversationContext } from '../conversation-context.js';
 import { isControlReply } from './policy.js';
 
-export const SLACK_PROMPT_VERSION = 'clint-shared-core-v5';
+export const SLACK_PROMPT_VERSION = 'clint-shared-core-v6';
 
 /** Transport formatting only. Identity, personality, recall, tools and filters live in Clint's core. */
 export function makeSlackGenerator(config, service = new LLMService({

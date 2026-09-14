@@ -19,7 +19,8 @@ test('classifier and planner do not log source fragments, generated goals or ada
     json: async () => ({ choices: [{ message: { content: replies.shift() } }] }) }; });
   assert.equal(await classifyVia4B(secret), null);
   assert.equal(await classifyVia4B(secret), null);
-  const scope = createConversationContext({ transport: 'slack', conversationId: 'slack:fixture',
+  // Read-only Slack bypasses this planner; exercise the retained non-Slack planner path.
+  const scope = createConversationContext({ transport: 'whatsapp', conversationId: 'fixture@g.us',
     actorId: 'owner', ownerId: 'owner', audience: 'group', localOnly: true, readOnly: true,
     policy: { mode: 'project', allowedProjects: ['fixture'] } });
   const result = await withConversationContext(scope,
