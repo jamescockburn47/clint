@@ -1,5 +1,6 @@
 import { KNOWLEDGE_DEFINITIONS } from '../knowledge/tools.js';
 import { GOOGLE_READ_DEFINITIONS } from './google-definitions.js';
+import { WEB_DEFINITIONS } from './web-definitions.js';
 export const TOOL_DEFINITIONS = [ ...KNOWLEDGE_DEFINITIONS, ...GOOGLE_READ_DEFINITIONS,
   {
     name: 'spire_presence',
@@ -403,39 +404,7 @@ export const TOOL_DEFINITIONS = [ ...KNOWLEDGE_DEFINITIONS, ...GOOGLE_READ_DEFIN
       required: ['location', 'checkin', 'checkout'],
     },
   },
-  // === WEB SEARCH ===
-  {
-    name: 'web_search',
-    description: 'Search the web for current information. Use when you need facts, prices, contact details, news, or anything outside your training data. Returns titles, URLs, and snippets.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        query: {
-          type: 'string',
-          description: 'Search query.',
-        },
-        count: {
-          type: 'number',
-          description: 'Number of results (1-10). Default 5.',
-        },
-      },
-      required: ['query'],
-    },
-  },
-  {
-    name: 'web_fetch',
-    description: 'Fetch and read the content of a URL. Use after web_search to read full page content, or when someone shares a link. Extracts main article content, preserves headings/lists/links as readable text. Max 8000 chars.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        url: {
-          type: 'string',
-          description: 'The full URL to fetch.',
-        },
-      },
-      required: ['url'],
-    },
-  },
+  ...WEB_DEFINITIONS,
 
   // === TODOS & REMINDERS ===
   {

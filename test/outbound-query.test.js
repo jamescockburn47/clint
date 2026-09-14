@@ -22,5 +22,7 @@ test('Real Slack policy allows percentage research while rejecting secret querie
     actorId: 'owner', ownerId: 'owner', audience: 'group', policy: { mode: 'open' }, localOnly: true, readOnly: true });
   assert.equal(permitsTool('web_search', { query: '5% commercial interest' }, scope), true);
   assert.equal(permitsTool('web_search', { query: 'Bearer synthetic-token-for-test' }, scope), false);
+  assert.equal(permitsTool('web_search', { query: 'reference', include_domains: ['xoxb-synthetic-token-for-test.example.org'] }, scope), false);
+  assert.equal(permitsTool('web_search', { query: 'reference', include_domains: ['docs.python.org'] }, scope), true);
   assert.equal(permitsTool('web_fetch', { url: 'https://example.com/?refresh_token=synthetic-secret-value' }, scope), false);
 });

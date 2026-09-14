@@ -2,11 +2,13 @@ import config from '../config.js';
 import logger from '../logger.js';
 import { currentConversation } from '../conversation-context.js';
 import { fetchPublicText } from '../public-web-fetch.js';
+import { domainRestrictions, allowedSearchResult } from './search-domains.js';
+import { validPageRequest, webPage } from './web-page.js';
 
-const MAX_FETCH_CHARS = 8000;
-
-export async function webFetch({ url }) {
+export async function webFetch({ url, offset = 0, source_hash: sourceHash }) {
   if (!url) return 'URL is required.';
+  if (!validPageRequest(offset, sourceHash)) return JSON.stringify({ state: 'invalid_page_request',
+    instruction: 'Use offset 0 initially; continuation requires the previous sourceHash and nextOffset.' });
   let timeout;
   try {
     const controller = new AbortController();
@@ -29,17 +31,23 @@ export async function webFetch({ url }) {
     if (!res.ok) return `Failed to fetch URL (HTTP ${res.status}).`;
 
     const contentType = res.headers.get('content-type') || '';
+    if (!/^text\//i.test(contentType) && !/^application\/(?:json|[\w.-]+\+json|xhtml\+xml|xml)(?:;|$)/i.test(contentType)) {
+      return JSON.stringify({ state: 'unsupported_content_type', content: null,
+        instruction: 'This reader supports text pages and JSON/XML, not binary documents or images.' });
+    }
+    const charset = /charset\s*=\s*["']?([^\s;"']+)/i.exec(contentType)?.[1];
+    if (charset && !/^(utf-?8|us-ascii)$/i.test(charset)) return JSON.stringify({ state: 'unsupported_text_encoding', content: null });
 
     // JSON — return formatted
-    if (contentType.includes('application/json')) {
+    if (/^application\/(?:json|[\w.-]+\+json)(?:;|$)/i.test(contentType)) {
       const json = await res.json();
       const text = JSON.stringify(json, null, 2);
-      return text.length > MAX_FETCH_CHARS ? text.slice(0, MAX_FETCH_CHARS) + '\n[...truncated]' : text;
+      return webPage(text, { url, finalUrl: publicResult?.finalUrl || res.url || url, offset, sourceHash });
     }
 
     let text = await res.text();
 
-    if (contentType.includes('text/html')) {
+    if (/^(text\/html|application\/xhtml\+xml)(?:;|$)/i.test(contentType)) {
       // Remove non-content blocks
       text = text.replace(/<script[\s\S]*?<\/script>/gi, '');
       text = text.replace(/<style[\s\S]*?<\/style>/gi, '');
@@ -90,12 +98,8 @@ export async function webFetch({ url }) {
       text = text.trim();
     }
 
-    if (text.length > MAX_FETCH_CHARS) {
-      text = text.slice(0, MAX_FETCH_CHARS) + '\n[...truncated]';
-    }
-
     logger.info({ chars: text.length }, 'web_fetch complete');
-    return text || 'Page returned empty content.';
+    return webPage(text, { url, finalUrl: publicResult?.finalUrl || res.url || url, offset, sourceHash });
   } catch (err) {
     if (err.name === 'AbortError') return 'URL fetch timed out (15s).';
     return currentConversation() ? 'Web fetch failed or destination is not permitted.' : `Web fetch error: ${err.message}`;
@@ -110,7 +114,7 @@ let tavilyCooldownUntil = 0;
 
 function clampCount(count) {
   const raw = count == null ? 5 : Number(count);
-  return Math.max(1, Math.min(10, Number.isNaN(raw) ? 5 : raw));
+  return Math.max(1, Math.min(10, Number.isNaN(raw) ? 5 : Math.trunc(raw)));
 }
 
 function formatResults(results, query) {
@@ -129,7 +133,7 @@ function formatResults(results, query) {
  * citable evidence instead of a stub the caller has to follow up with
  * web_fetch. Returns null on any failure so the caller can fall back.
  */
-async function searchTavily(query, n) {
+async function searchTavily(query, n, restriction) {
   if (!config.tavilyApiKey) return null;
   if (Date.now() < tavilyCooldownUntil) {
     logger.warn({ cooldownUntil: new Date(tavilyCooldownUntil).toISOString() }, 'tavily search skipped during cooldown');
@@ -151,6 +155,7 @@ async function searchTavily(query, n) {
         search_depth: config.tavilySearchDepth,
         max_results: n,
         include_answer: false,
+        ...(restriction.native.length ? { include_domains: restriction.native } : {}),
       }),
     });
 
@@ -164,7 +169,7 @@ async function searchTavily(query, n) {
     }
 
     const data = await res.json();
-    const results = (data?.results || []).slice(0, n);
+    const results = (data?.results || []).filter(result => allowedSearchResult(result, restriction)).slice(0, n);
     if (results.length === 0) return null;
 
     logger.info({ count: results.length }, 'web search via Tavily');
@@ -188,9 +193,10 @@ async function searchTavily(query, n) {
  * SearXNG IP ranges); in practice the fallback returns `null` to signal
  * the caller should surface a "No results" string rather than pretend.
  */
-async function searchSearxng(query, n) {
+async function searchSearxng(query, n, restriction) {
   const searxngUrl = config.evoSearxngUrl;
-  const url = `${searxngUrl}/search?q=${encodeURIComponent(query)}&format=json&pageno=1`;
+  const narrowed = restriction.native.length ? `(${restriction.native.map(domain => 'site:' + domain).join(' OR ')}) ${query}` : query;
+  const url = `${searxngUrl}/search?q=${encodeURIComponent(narrowed)}&format=json&pageno=1`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS);
@@ -202,7 +208,7 @@ async function searchSearxng(query, n) {
     }
 
     const data = await res.json();
-    const results = (data?.results || []).slice(0, n);
+    const results = (data?.results || []).filter(result => allowedSearchResult(result, restriction)).slice(0, n);
     if (results.length === 0) {
       logger.warn({
         unresponsive: data?.unresponsive_engines?.length || 0,
@@ -224,15 +230,19 @@ async function searchSearxng(query, n) {
   }
 }
 
-export async function webSearch({ query, count }) {
+export async function webSearch({ query, count, include_domains: includeDomains = undefined }) {
+  if (typeof query !== 'string' || !query.trim() || query.length > 4000) return 'Invalid search query; no search was sent.';
   const n = clampCount(count);
+  let restriction;
+  try { restriction = domainRestrictions(query, includeDomains); }
+  catch { return 'Invalid source restriction. Use up to eight domain names, without schemes, ports or paths; no search was sent.'; }
 
   // Tavily primary — LLM-native content extraction, one call = usable evidence.
-  const tavilyResult = await searchTavily(query, n);
+  const tavilyResult = await searchTavily(query, n, restriction);
   if (tavilyResult) return tavilyResult;
 
   // SearXNG fallback.
-  const searxngResult = await searchSearxng(query, n);
+  const searxngResult = await searchSearxng(query, n, restriction);
   if (searxngResult) return searxngResult;
 
   return 'Search unavailable or returned no usable results. This does not establish that no relevant sources exist.';

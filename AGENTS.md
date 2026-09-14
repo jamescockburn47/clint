@@ -14,7 +14,7 @@ not implemented. Do not present policy v1 below as the finished learning capabil
 Keep existing safeguards until replacements pass.
 
 The separate minimal-prompt pilot has been replaced in source by a shared-core
-`src/slack/model.js` adapter. Current v8 release `bc99171bf75a61e1` runs Flash Next
+`src/slack/model.js` adapter. Current v9 release `4e74253b58d6d1ff` runs Flash Next
 under the enabled persistent root `clint-flash.service`. The owner authorized removing
 the temporary lease on 14 September. Explicit evo-job serve retains exclusive admission,
 hard caps, health/reserve monitoring and fallback recovery while normal run/build jobs
@@ -198,3 +198,24 @@ worker source must match the app release. See docs/clint-document-extraction.md.
 No inferred personality/factual promotion or small gate is activated by this change.
 The owner authorizes reviewed overnight private Slack improvements; no commits, pushes,
 calendar writes or communications to other people are authorized.
+
+14 September v10 teaching candidate: owner-only explicit teach/correct/example commands
+store literal source-linked guidance in a separate mutable teachings.sqlite. Natural
+feedback remains attributed episodes, not inferred global instructions or verified facts.
+Retirement keeps an audit and excludes all prior ordinary context, including unrelated
+feedback, while leaving unrelated explicit teachings active. Cached responses are
+invalidated at retirement; policy downgrades cannot reuse private history or ready output.
+Only current anchored authenticated commands mutate teaching state. No tool authority or
+model weights are changed. Prior prototype schemas were never deployed; first release
+requires absence of existing teachings.sqlite. See docs/clint-slack-teaching.md.
+Independent frozen transfer trial must pass before claiming behavioral improvement;
+do not adjust its inputs or rerun unsatisfactory answers. v9 remains live until reviewed
+v10 installation. Document extraction and Google reads described above are live in v9.
+
+The frozen v10 teaching trial failed overall: T1 invented decision support and T3 copied
+an example's event detail into a new draft. Keep the literal candidate and failure evidence,
+but the main Slack entry point must not construct TeachingStore/SlackTeaching. Working
+persistence or retirement cannot overturn behavioral failure. v11 research candidate starts
+from live v9 capabilities, with the failed teaching path disconnected. The independently
+found policy-transition protection applies to ordinary private inbox history/cached replies
+too: legacy rows lack audience provenance, so non-open policies cannot reuse them.

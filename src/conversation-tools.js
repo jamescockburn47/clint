@@ -32,7 +32,7 @@ export function permitsTool(name, input, scope = currentConversation(), core = c
   if (!scope) return true; // Legacy background jobs have a separate trusted invocation contract.
   if (scope.audience === 'unknown' || !scope.actorId) return false;
   if (input !== undefined && ['web_search', 'web_fetch'].includes(name)) {
-    let text = String(name === 'web_search' ? input?.query || '' : input?.url || '');
+    let text = name === 'web_search' ? String(input?.query || '') + '\n' + JSON.stringify(input?.include_domains ?? []) : String(input?.url || '');
     if (!outboundQuerySafe(text, core)) return false;
     try { text = decodeURIComponent(text); } catch { /* Plain search text may contain a literal percent. */ }
     if (!filterResponse(text, scope.conversationId).safe) return false;

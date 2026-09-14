@@ -56,13 +56,16 @@ export async function fetchPublicText(raw, { resolve = lookup, request, timeoutM
         continue;
       }
       const parts = [];
+      if (response.headers['content-encoding'] && response.headers['content-encoding'] !== 'identity') {
+        response.destroy(); throw new Error('web_encoding_unsupported');
+      }
       let size = 0;
       for await (const chunk of response) {
         size += chunk.length;
         if (size > maxBytes) { response.destroy(); throw new Error('web_response_too_large'); }
         parts.push(chunk);
       }
-      return { status: response.statusCode, contentType: response.headers['content-type'] || '',
+      return { status: response.statusCode, finalUrl: url.href, contentType: response.headers['content-type'] || '',
         text: Buffer.concat(parts).toString('utf8') };
     }
     throw new Error('web_redirect_limit');

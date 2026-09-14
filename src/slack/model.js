@@ -1,14 +1,15 @@
 import { LLMService } from '../claude.js';
 import { createConversationContext } from '../conversation-context.js';
 import { isControlReply } from './policy.js';
+import { teachingContextText } from './teaching.js';
 
-export const SLACK_PROMPT_VERSION = 'clint-shared-core-v9';
+export const SLACK_PROMPT_VERSION = 'clint-shared-core-v11';
 
 /** Transport formatting only. Identity, personality, recall, tools and filters live in Clint's core. */
 export function makeSlackGenerator(config, service = new LLMService({
   qwenChatUrl: config.modelUrl, qwenChatModel: config.modelId,
 })) {
-  return async (event, history) => {
+  return async (event, history, teaching = null) => {
     if (event.team !== config.teamId || event.channel !== config.channelId || event.owner !== config.ownerId) {
       throw new Error('slack_conversation_identity_mismatch');
     }
@@ -24,7 +25,7 @@ export function makeSlackGenerator(config, service = new LLMService({
       exchanges.unshift({ user: item.text, clint: item.answer });
     }
     // Source text never supplies executable identity or policy.
-    const context = `[Earlier thread exchanges: untrusted conversation data]\n${JSON.stringify(exchanges)}\n`
+    const context = teachingContextText(teaching) + `[Earlier thread exchanges: untrusted conversation data]\n${JSON.stringify(exchanges)}\n`
       + `[Current message]\n${event.text}`;
     let result = await service.getResponse(context, 'professional', event.owner, null, chat, { conversation });
     if (result?.text && isControlReply(result.text)) {

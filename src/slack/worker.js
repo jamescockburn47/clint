@@ -21,10 +21,11 @@ export function classifySendFailure(err) {
 }
 
 export class SlackWorker {
-  constructor({ store, config, web, generate, report = () => {}, now = Date.now }) {
-    Object.assign(this, { store, config, web, generate, report, now });
+  constructor({ store, config, web, generate, teaching = null, report = () => {}, now = Date.now }) {
+    Object.assign(this, { store, config, web, generate, teaching, report, now });
     this.running = null;
     this.stopped = false;
+    this.readyPolicies = new Map();
   }
   drain() {
     if (this.running) return this.running;
@@ -49,22 +50,39 @@ export class SlackWorker {
       // Persisted work must be re-authorized against the CURRENT deployment policy.
       if (event.team !== this.config.teamId || event.channel !== this.config.channelId ||
           event.owner !== this.config.ownerId) {
+        this.readyPolicies.delete(event.id);
         this.store.setState(event.id, 'blocked', 'scope_changed'); continue;
+      }
+      if (event.state === 'ready' && this.config.policy?.mode !== 'open' &&
+          this.readyPolicies.get(event.id) !== JSON.stringify(this.config.policy || {})) {
+        this.readyPolicies.delete(event.id);
+        this.store.setState(event.id, 'blocked', 'cached_private_context_requires_open_policy'); continue;
       }
       try {
         if (!await authorizeChannel(this.web, this.config)) {
+          this.readyPolicies.delete(event.id);
           this.store.setState(event.id, 'blocked', 'channel_not_private_local'); continue;
         }
       } catch (err) {
         this.report('channel_check_failed', errorCode(err)); return;
       }
       let answer = event.answer;
+      if (event.state === 'ready' && this.teaching?.shouldRegenerate(event)) {
+        this.store.setState(event.id, 'queued'); continue;
+      }
       if (event.state === 'queued') {
+        this.readyPolicies.delete(event.id);
         this.store.generating(event.id);
         try {
-          answer = await this.generate(event, this.store.history(event));
+          // Legacy inbox rows have no audience provenance. Never replay them under a narrower policy.
+          const history = this.config.policy?.mode === 'open' ? this.store.history(event) : [];
+          answer = this.teaching?.handle(event, history, this.store.contextBarrier?.(event));
+          if (answer == null) answer = await this.generate(event,
+            this.teaching?.history(event, history) ?? history, this.teaching?.context(event));
           replyPayload(event, answer); // Validate before persisting a sendable result.
+          this.teaching?.markResponse(event);
           this.store.ready(event.id, answer);
+          this.readyPolicies.set(event.id, JSON.stringify(this.config.policy || {}));
         } catch (err) {
           const code = errorCode(err);
           const waiting = this.now() - event.created < CORE_WAIT_LIMIT_MS;
@@ -82,6 +100,7 @@ export class SlackWorker {
       // Recheck sharing immediately before outbound delivery, after potentially slow generation.
       try {
         if (!await authorizeChannel(this.web, this.config)) {
+          this.readyPolicies.delete(event.id);
           this.store.setState(event.id, 'blocked', 'channel_changed_before_send'); continue;
         }
       } catch (err) { this.report('channel_check_failed', errorCode(err)); return; }
@@ -92,6 +111,7 @@ export class SlackWorker {
           throw new Error('slack_send_unconfirmed');
         }
         this.store.sent(event.id, result.ts);
+        this.readyPolicies.delete(event.id);
         this.report('reply_sent');
       } catch (err) {
         const outcome = classifySendFailure(err);
@@ -100,6 +120,7 @@ export class SlackWorker {
           this.store.setState(event.id, 'ready', 'rate_limited'); this.report('delivery_rate_limited'); return;
         }
         if (outcome === 'rejected') {
+          this.readyPolicies.delete(event.id);
           const known = new Set(['invalid_blocks', 'msg_too_long', 'not_in_channel',
             'channel_not_found', 'is_archived', 'restricted_action', 'missing_scope', 'invalid_auth']);
           const reason = `slack_rejected:${known.has(err.data.error) ? err.data.error : 'platform_error'}`;
@@ -108,6 +129,7 @@ export class SlackWorker {
         }
         // SDK retries disabled: a lost response is not proof that Slack did not post.
         this.store.setState(event.id, 'uncertain', 'delivery_requires_reconciliation');
+        this.readyPolicies.delete(event.id);
         this.report('delivery_uncertain', errorCode(err));
       }
     }

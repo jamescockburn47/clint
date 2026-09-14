@@ -41,6 +41,10 @@ export class SlackStore {
       AND owner=? AND (?=1 OR thread=?) AND state='sent' AND ts<? ORDER BY ts DESC LIMIT 10`)
       .all(event.team, event.channel, event.owner, root ? 1 : 0, event.thread, event.ts).reverse();
   }
+  contextBarrier(event) {
+    return this.db.prepare('SELECT max(ts) AS stamp FROM events WHERE team=? AND channel=? AND owner=?')
+      .get(event.team, event.channel, event.owner).stamp || event.ts;
+  }
   setState(id, state, error = null) {
     this.db.prepare('UPDATE events SET state=?,error=? WHERE id=?').run(state, error, id);
   }

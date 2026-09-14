@@ -41,7 +41,7 @@ import { systemStatus } from '../runtime-status.js';
 
 // --- Prefetch-aware web search ---
 async function webSearch(input) {
-  const cached = currentConversation()?.transport === 'slack' ? null : getWebPrefetch(input.query);
+  const cached = currentConversation()?.transport === 'slack' || input.include_domains?.length || /(?:^|\s)site:/i.test(input.query) ? null : getWebPrefetch(input.query);
   if (cached) { logger.info('web_search served from cortex prefetch'); return cached; }
   return _rawWebSearch(input);
 }
