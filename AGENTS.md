@@ -14,13 +14,14 @@ not implemented. Do not present policy v1 below as the finished learning capabil
 Keep existing safeguards until replacements pass.
 
 The separate minimal-prompt pilot has been replaced in source by a shared-core
-`src/slack/model.js` adapter. Release `55be63c56583b5e1` (v7) is running on the EVO with
-boot startup enabled. At 18:15 UTC on 14 September its effective process configuration
-and fresh server props confirmed Flash Next. The bounded owner-test controller expires
-at about 19:04 UK time on 15 September and restores the original Qwen/embedding/Slack
-services on exit; a root-owned boot recovery unit covers reboot after the original
-gateway was explicitly stopped. Private membership and both read-only archive mounts
-passed live checks; James subsequently tested capability descriptions through Slack.
+`src/slack/model.js` adapter. Current v8 release `bc99171bf75a61e1` runs Flash Next
+under the enabled persistent root `clint-flash.service`. The owner authorized removing
+the temporary lease on 14 September. Explicit evo-job serve retains exclusive admission,
+hard caps, health/reserve monitoring and fallback recovery while normal run/build jobs
+keep their finite deadlines. Controlled stop/fallback inference/Slack readiness/start and
+real Flash adapter research passed. Actual host reboot was not performed. See
+`../evidence/persistent-flash-release-20260914.md`. Stop and prove recovery before any
+source/configuration upgrade; the installer rejects active/pending controllers.
 The prior v4 release established actual Slack delivery/restart recall. See
 `docs/clint-existing-control-audit.md`. Do not replace live EVO group policies with
 repository defaults, or treat a non-WhatsApp ID as a private owner conversation.
@@ -151,7 +152,7 @@ cloud inference capabilities. Source text can inform search queries; determinist
 guards reject recognizable/configured credentials, and public fetch retains its SSRF boundary.
 Google reads use fixed endpoints, pagination, source dates and explicit failure states.
 Drive text reads currently support Google Docs, Slides and UTF-8 text; other formats are
-explicitly unsupported, not claimed as read. A new OAuth grant requires James's Google consent.
+explicitly unsupported, not claimed as read. James consented to Calendar.readonly and Drive.readonly; both APIs passed live reads.
 Two legacy import lines wire isolated Google modules into definitions/handler; ceilings
 increase by exactly one each. Do not change the pinned v7 lease's release/configuration:
 recover it before installing v8 and re-arm Flash with newly reviewed pins.
@@ -188,3 +189,12 @@ The current owner instructions override historical deployment/model claims in
 CLAUDE.md. Model inventory must be measured. On 2026-09-13, the EVO gateway reported
 `qwen3.8-27b` loaded from `Qwen3.8-27B-Q8_0.gguf`; Qwen3-Embedding-8B-Q8_0 also ran.
 This establishes model availability, not second-brain or training readiness.
+
+14 September overnight v9 candidate: bounded document extraction adds PDF/DOCX/XLSX and
+native Sheets to Drive reading. A separate socket-activated DynamicUser has an empty
+root filesystem, no network/Clint credentials, one worker and fixed resource/time limits.
+Install and probe the reviewed extraction service before deploying the matching app;
+worker source must match the app release. See docs/clint-document-extraction.md.
+No inferred personality/factual promotion or small gate is activated by this change.
+The owner authorizes reviewed overnight private Slack improvements; no commits, pushes,
+calendar writes or communications to other people are authorized.

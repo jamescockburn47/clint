@@ -1,0 +1,30 @@
+[Unit]
+Description=Isolated Clint document extraction
+
+[Service]
+Type=exec
+DynamicUser=yes
+RootDirectory=/var/lib/clint-extractor/root
+BindReadOnlyPaths=/usr /lib /lib64
+ExecStart=/usr/bin/python3 -I /usr/local/lib/clint-extractor/document-worker.py
+StandardInput=socket
+StandardOutput=socket
+StandardError=null
+PrivateNetwork=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+TemporaryFileSystem=/tmp:rw,size=64M
+NoNewPrivileges=yes
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=
+ProtectProc=invisible
+ProcSubset=pid
+MountAPIVFS=yes
+MemoryMax=256M
+MemorySwapMax=0
+CPUQuota=200%
+TasksMax=16
+RuntimeMaxSec=120
+TimeoutStopSec=5
+UMask=0077

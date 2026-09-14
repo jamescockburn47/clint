@@ -16,7 +16,7 @@ export const GOOGLE_READ_DEFINITIONS = [
     query: string('Plain search text, not Drive query syntax.'), folder_id: string('Optional parent folder ID.'),
     page_token: string('Continuation token from the previous page.'),
   }),
-  tool('drive_read', 'Read Google Docs, Slides or UTF-8 text files in bounded pages. Other formats explicitly report unsupported. Supply modified_time on continuation to detect edits.', {
+  tool('drive_read', 'Read Docs, Slides, UTF-8, PDF, DOCX, XLSX and Google Sheets in bounded pages. PDF page references and spreadsheet cell references are preserved; scan OCR is labelled unverified. Check extraction limitations, unread pages and nextOffset. Supply modified_time on continuation to detect edits.', {
     file_id: string('Google Drive file ID.'), offset: { type: 'integer', minimum: 0 },
     modified_time: string('Exact modifiedTime returned by the preceding page.'),
   }, ['file_id']),

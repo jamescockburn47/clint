@@ -1,0 +1,14 @@
+[Unit]
+Description=Clint bounded document extraction socket
+
+[Socket]
+ListenStream=/run/clint-extractor.sock
+SocketMode=0660
+SocketUser=root
+SocketGroup=clint-extract
+Accept=yes
+MaxConnections=1
+Backlog=4
+
+[Install]
+WantedBy=sockets.target

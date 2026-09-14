@@ -96,7 +96,7 @@ test('Drive read carries source version, complete paged text and detects edits d
 });
 
 test('Unsupported files and upstream failures cannot masquerade as empty documents or empty calendars', async () => {
-  assert.equal((await call('drive_read', { file_id: 'abc' }, async () => ({ ...file, mimeType: 'application/pdf' }))).state,
+  assert.equal((await call('drive_read', { file_id: 'abc' }, async () => ({ ...file, mimeType: 'application/vnd.ms-excel' }))).state,
     'unsupported_format');
   const failure = await call('calendar_read_events', { time_min: modifiedTime, time_max: '2026-09-15T10:00:00Z' },
     async () => { throw new Error('credential: secret-token private-data'); });
@@ -127,4 +127,16 @@ test('Google client restricts hosts, methods, redirect behavior, token lifetime 
     assert.equal(new URL(entry.url).hostname, 'www.googleapis.com');
     assert.equal(entry.options.method, 'GET');
   }
+});
+
+test('Google binary downloads preserve non-UTF8 bytes and enforce the binary size ceiling', async () => {
+  let oversize = false;
+  const bytes = Buffer.from([0, 255, 128, 10]);
+  const reader = createGoogleReader({ core: { googleClientId: 'id', googleClientSecret: 'secret', googleRefreshToken: 'refresh' },
+    fetchFn: async url => String(url).includes('/token')
+      ? new Response(JSON.stringify({ access_token: 'token', expires_in: 3600 }))
+      : new Response(oversize ? Buffer.alloc(20_000_001) : bytes) });
+  assert.deepEqual(await reader('/drive/v3/files/abc', { alt: 'media' }, { binary: true }), bytes);
+  oversize = true;
+  await assert.rejects(reader('/drive/v3/files/abc', { alt: 'media' }, { binary: true }), /google_response_too_large/);
 });

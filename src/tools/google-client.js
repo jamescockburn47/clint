@@ -21,7 +21,7 @@ export function createGoogleReader({ core = config, fetchFn = fetch, now = Date.
         if (bytes > limit) throw new Error('google_response_too_large');
         chunks.push(value);
       }
-      return Buffer.concat(chunks).toString('utf8');
+      return Buffer.concat(chunks);
     } finally { await reader.cancel(); reader.releaseLock(); }
   }
   async function accessToken() {
@@ -34,7 +34,7 @@ export function createGoogleReader({ core = config, fetchFn = fetch, now = Date.
       body: new URLSearchParams({ client_id: core.googleClientId, client_secret: core.googleClientSecret,
         refresh_token: core.googleRefreshToken, grant_type: 'refresh_token' }),
     });
-    const data = JSON.parse(await consume(response, 16000));
+    const data = JSON.parse((await consume(response, 16000)).toString('utf8'));
     if (typeof data.access_token !== 'string' || !Number.isFinite(data.expires_in)) {
       throw new Error('google_invalid_token_response');
     }
@@ -42,7 +42,7 @@ export function createGoogleReader({ core = config, fetchFn = fetch, now = Date.
     expires = now() + Math.max(0, data.expires_in - 60) * 1000;
     return token;
   }
-  return async (path, params = {}, { text = false } = {}) => {
+  return async (path, params = {}, { text = false, binary = false } = {}) => {
     if (!/^\/(?:calendar\/v3|drive\/v3)\//.test(path) || /[?#]/.test(path)) {
       throw new Error('google_invalid_api_path');
     }
@@ -51,8 +51,8 @@ export function createGoogleReader({ core = config, fetchFn = fetch, now = Date.
     const response = await fetchFn(url, { method: 'GET', redirect: 'error',
       headers: { Authorization: 'Bearer ' + await accessToken() }, signal: AbortSignal.timeout(15000) });
     if (response.status === 401) { token = null; expires = 0; }
-    const body = await consume(response);
-    return text ? body : JSON.parse(body);
+    const body = await consume(response, binary ? 20_000_000 : 2_000_000);
+    return binary ? body : text ? body.toString('utf8') : JSON.parse(body.toString('utf8'));
   };
 }
 

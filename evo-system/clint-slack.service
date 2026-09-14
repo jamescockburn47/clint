@@ -8,6 +8,7 @@ StartLimitBurst=5
 [Service]
 Type=simple
 DynamicUser=yes
+SupplementaryGroups=clint-extract
 WorkingDirectory=/opt/clint-slack/current
 EnvironmentFile=/etc/clint-slack/runtime.env
 Environment=SLACK_DATA_DIR=/var/lib/clint-slack

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createGoogleReader, googleError } from './google-client.js';
 import { knowledgeAllowed } from '../knowledge/tools.js';
+import { BINARY_DOCUMENT_TYPES, XLSX_MIME, extractDocument } from './document-extract.js';
 
 const page = z.string().max(4096).optional();
 const id = z.string().regex(/^[\w@.+-]{1,512}$/);
@@ -20,7 +21,7 @@ const escapeQuery = text => text.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 const fields = 'id,name,mimeType,modifiedTime,webViewLink,size,capabilities(canDownload)';
 const read = createGoogleReader();
 
-export async function googleRead(name, input, { request = read, allowed = knowledgeAllowed,
+export async function googleRead(name, input, { request = read, allowed = knowledgeAllowed, extract = extractDocument,
   now = () => new Date() } = {}) {
   if (!allowed()) return JSON.stringify({ state: 'not_authorized' });
   const parsed = schemas[name]?.safeParse(input);
@@ -68,18 +69,25 @@ export async function googleRead(name, input, { request = read, allowed = knowle
     if (args.modified_time && args.modified_time !== file.modifiedTime) return wrap({ state: 'file_changed_restart_read', file });
     if (!file.capabilities?.canDownload) return wrap({ state: 'download_not_permitted', file });
     const native = ['application/vnd.google-apps.document', 'application/vnd.google-apps.presentation'].includes(file.mimeType);
-    if (!native && !/^(text\/|application\/(json|xml)$)/.test(file.mimeType || '')) {
+    const sheet = file.mimeType === 'application/vnd.google-apps.spreadsheet';
+    const binary = sheet || BINARY_DOCUMENT_TYPES.has(file.mimeType);
+    if (!native && !binary && !/^(text\/|application\/(json|xml)$)/.test(file.mimeType || '')) {
       return wrap({ state: 'unsupported_format', file, contentsRead: false });
     }
-    const content = native ? await request(path + '/export', { mimeType: 'text/plain' }, { text: true })
-      : await request(path, { alt: 'media', supportsAllDrives: true }, { text: true });
+    if (binary && Number(file.size) > 20_000_000) return wrap({ state: 'extraction_limit', file, contentsRead: false });
+    const downloaded = native || sheet ? await request(path + '/export', { mimeType: sheet ? XLSX_MIME : 'text/plain' },
+      { text: !sheet, binary: sheet }) : await request(path, { alt: 'media', supportsAllDrives: true }, { text: !binary, binary });
+    const extracted = binary ? await extract(downloaded, sheet ? XLSX_MIME : file.mimeType) : null;
+    if (extracted && extracted.state !== 'extracted') return wrap({ ...extracted, file, contentsRead: false });
+    const content = extracted ? extracted.content : downloaded;
     const after = await request(path, { fields: 'modifiedTime', supportsAllDrives: true });
     if (after.modifiedTime !== file.modifiedTime) return wrap({ state: 'file_changed_restart_read', file });
     if (args.offset > content.length) return wrap({ state: 'invalid_offset', file });
     const end = Math.min(content.length, args.offset + 12000);
-    return wrap({ state: 'content', file, offset: args.offset, content: content.slice(args.offset, end),
+    const { content: ignoredContent, state: ignoredState, ...extraction } = extracted || {};
+    return wrap({ ...extraction, state: 'content', file, offset: args.offset, content: content.slice(args.offset, end),
       totalCharacters: content.length, nextOffset: end < content.length ? end : null,
-      representation: native ? 'plain_text_export_formatting_not_preserved' : 'utf8_text' });
+      representation: extracted?.representation || (native ? 'plain_text_export_formatting_not_preserved' : 'utf8_text') });
   } catch (error) { return wrap({ state: 'unavailable', error: googleError(error) }); }
 }
 export const GOOGLE_READ_HANDLERS = Object.keys(schemas).map(name => [name, input => googleRead(name, input)]);
