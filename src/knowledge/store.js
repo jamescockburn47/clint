@@ -64,7 +64,9 @@ export function queryKnowledge(path, operation, input = {}) {
       return { state: 'snapshot', ...evidence, records: row ? [withNext(row)] : [], recordedAt: metadata.recordedAt };
     }
     const { query } = z.object({ query: z.string().min(1).max(300) }).strict().parse(input);
-    const terms = [...new Set(query.match(/[\p{L}\p{N}_-]+/gu) || [])].slice(0, 12);
+    // The validated 300-character query already bounds work. Dropping later words
+    // can remove its only distinguishing name or topic.
+    const terms = [...new Set(query.match(/[\p{L}\p{N}_-]+/gu) || [])];
     if (!terms.length) return { state: 'snapshot', ...evidence, records: [] };
     // Quote tokens: user input never becomes FTS grammar or SQL.
     const match = terms.map(term => `"${term}"`).join(' OR ');

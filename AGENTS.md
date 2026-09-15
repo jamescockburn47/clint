@@ -1,5 +1,12 @@
 # Clint overhaul policy
 
+15 September v21 candidate removes silent query-word loss after twelve unique terms
+in private archive search. The existing 300-character validation, quoted literal FTS
+tokens, read-only snapshot, complete-record and output-size boundaries remain. This is
+a deterministic retrieval repair, not hybrid/graph recall or model answer accuracy.
+Require query-position/length/injection regressions and installed synthetic evidence
+delivery before claiming the release; no private archive rewrite is involved.
+
 15 September v20 candidate adds only complete-message `clint help`/`clint status`
 diagnostics in the issued private owner read-only Slack path. Reuse the core tool
 inventory/runtime observer and existing topic/canary/credential/delivery boundaries.

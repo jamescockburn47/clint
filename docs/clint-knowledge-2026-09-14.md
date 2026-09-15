@@ -149,3 +149,18 @@ gateway-hidden model build/context remain null. It does not load a model to insp
 Independent actual-output review passed the technical answer against the captured tool result,
 but the wider capability screen still failed: file-input and background-learning claims exceeded
 the evidence. Preserve this split verdict. See `../evidence/independent-runtime-description-review-20260914.md`.
+# 15 September query-word preservation
+
+The v21 candidate removes an undocumented first-twelve-unique-words cutoff from
+archive search. Every recognized term in the already validated 300-character query
+now reaches the quoted literal OR expression. A distinguishing entity at the end of
+a longer query is no longer discarded solely because of its position.
+
+Search remains SQLite FTS5/BM25 with the same result and complete-record limits.
+This does not add semantic, graph or live-account retrieval, and it does not establish
+that the model will use retrieved evidence correctly. Source records, qualifiers,
+attribution and the immutable snapshot remain unchanged. Focused regression checks
+cover late terms, movement across the old cutoff, 100 terms in 299 characters,
+overlength rejection and quoted FTS/SQL metacharacters. A local aggregate-only cost
+probe on the existing snapshot took23–431ms for three fixed queries; that is not a
+general recall benchmark or a latency guarantee.
