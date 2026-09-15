@@ -279,3 +279,11 @@ and tests are preserved outside the active app under ../experiments and exact ev
 The new helper is separate; one import and three call-site lines raise claude.js ceiling
 from723 to727. Original provider-unavailability handling and ordinary useful replies remain.
 Require independent review and entry-path evidence for this narrower reliability repair.
+
+15 September v19 removes the draft-only style rewrite from the issued private owner
+Slack/group/localOnly/readOnly/non-webOnly scope. It sees neither the original question
+nor tool evidence and is not a factual verification gate. Guard both selection and
+direct invocation; preserve other scopes, deterministic output filtering, terminal
+notices and audience/delivery checks. Negative-control tests must show an accepted
+fact-changing rewrite outside protected scope and exact original text/zero critique
+calls inside it. This is draft preservation, not first-draft accuracy or teaching.

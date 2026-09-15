@@ -20,6 +20,13 @@ const critiqueClient = config.anthropicApiKey
     ? { client: new Anthropic({ apiKey: config.minimaxApiKey, baseURL: config.minimaxBaseUrl }), defaultModel: config.minimaxModel, provider: 'minimax' }
     : null);
 
+function preserveOwnerDraft(scope = currentConversation()) {
+  // This pass sees only a draft, not the question or tool evidence. It cannot
+  // safely rewrite source-based owner replies. Deterministic output filters remain.
+  return scope?.transport === 'slack' && scope.audience === 'group' && scope.isOwner
+    && scope.privateContext && scope.localOnly && scope.readOnly && !scope.webOnly;
+}
+
 const CRITIQUE_SYSTEM = `You are a ruthless quality gate. You review Clint's draft responses before they're sent to a WhatsApp group of sharp, critical people who will instantly spot AI slop.
 
 REJECT and rewrite if ANY of these are present:
@@ -61,6 +68,7 @@ OUTPUT RULES:
  * @returns {boolean}
  */
 export function shouldCritique(category, text, useClaudeClient) {
+  if (preserveOwnerDraft()) return false;
   return (
     (category === 'planning' || category === 'legal'
       || (category === 'email' && text.length > 400))
@@ -80,6 +88,7 @@ export function shouldCritique(category, text, useClaudeClient) {
  * @returns {Promise<string>} - Refined or original text
  */
 export async function runCritique(text, category, trackTokensFn, reviewClient) {
+  if (preserveOwnerDraft()) return text;
   const selected = reviewClient || (currentConversation()?.localOnly ? null : critiqueClient);
   if (!selected) {
     logger.info('self-critique: skipped (no LLM provider configured)');
