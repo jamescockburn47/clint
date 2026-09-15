@@ -14,7 +14,7 @@ not implemented. Do not present policy v1 below as the finished learning capabil
 Keep existing safeguards until replacements pass.
 
 The separate minimal-prompt pilot has been replaced in source by a shared-core
-`src/slack/model.js` adapter. Current v11 release `975b2c6084e2a530` runs Flash Next
+`src/slack/model.js` adapter. The current reviewed private release runs Flash Next
 under the enabled persistent root `clint-flash.service`. The owner authorized removing
 the temporary lease on 14 September. Explicit evo-job serve retains exclusive admission,
 hard caps, health/reserve monitoring and fallback recovery while normal run/build jobs
@@ -227,3 +227,55 @@ that prompt or teaching, tune against those exposed cases, or reclassify the fai
 acceptance. Public-document v12 independently extends web_fetch to the already isolated
 PDF/DOCX/XLSX worker, preserving network limits and raw/extracted version identity.
 Its release keeps the baseline prompt and teaching disconnection unchanged.
+
+The installed-source candidate adds a fixed module-root, positive source-path boundary
+with no descendant symlinks, bounded whole-line pages and release/path/raw-hash-bound
+continuation. Only the exact private owner Slack path is eligible. Source presence is
+not activation or runtime evidence; inspect active wiring and fresh status separately.
+Keep dormant profiles/teaching disconnected. See docs/clint-installed-source.md and the
+independent review and frozen actual-output evidence before claiming this capability.
+V13 failed its frozen real-worker screen with no file reads or delivered answers and was
+not installed. V14 separates initial path-only requests from opaque continuation cursors,
+with directories listed before files. This one mechanism revision requires fresh cases;
+do not change the baseline prompt/sampler/tool-round limit or rerun the exposed v13 cases.
+
+V14 failed both fresh cases with empty source arguments. The pinned backend converts
+top-level oneOf into a non-object schema, so the Qwen XML grammar emits no parameter
+rules. CPU reproduction against the actual serving library confirmed the defect.
+V15 removes only advertised oneOf; the strict handler union and permission boundary
+remain unchanged. Synthetic path/cursor transport passed four checks, not semantic
+acceptance. Preserve all failed trials and require new source-analysis cases before
+deployment; do not patch prompts or increase the tool budget to mask these failures.
+
+V15 transported arguments and read all required files, but failed both source-analysis
+cases: reasoning-only token exhaustion and continued tools without a final answer.
+V16 reserves the existing sixth read-only Slack request for a nonthinking, no-tools
+final answer. Earlier truncation may use one remaining call slot, never truncated
+prose, tool replay or additional critique. Unusable terminal responses become persisted
+honest notices. Six core calls and five executed tool rounds remain the bounds.
+The Flash request deadline is 360 seconds following measured 208-second exhaustion;
+more time alone failed and is not a quality claim. Other models remain at 120 seconds.
+The claude.js legacy ceiling increases by exactly 13 logical lines (723 to 736) for
+the narrow orchestration branches; response validation lives in a separate module.
+Require independently frozen final-answer evidence cases and a fresh natural source
+inspection before deployment. Structural completion does not certify factual completeness.
+
+V16 failed all three frozen final-evidence cases: a wrong relative date, a raw tool call
+despite no tools, and unsupported additions to conflicting records. Its guard correctly
+blocked the raw call, but semantic acceptance failed. Do not dispatch the natural source
+case on that result. V17 is one evidence-representation revision: exact completed tool
+results become inert attributed records for the final request, preserving user context,
+source content and failures; intermediate model prose and executable tool-call scaffolding
+are removed. The original system prompt, final instruction, nonthinking setting and
+sampler are unchanged. One import raises claude.js ceiling737. Freeze fresh cases before
+calls. If this revision fails, stop finalization-interface iterations and retain only
+independently proved failure-notice improvements; source usefulness remains unproved.
+
+V17 also failed0/3 fresh semantic cases; no more finalization-interface revisions.
+V18 restores the v12 runtime boundaries and model client exactly, then adds only honest
+terminal notices for unusable read-only owner Slack attempts. No finalizer, source-reader
+tools, prompt/settings changes or deadline increase. Source-reader and finalization code
+and tests are preserved outside the active app under ../experiments and exact evidence.
+The new helper is separate; one import and three call-site lines raise claude.js ceiling
+from723 to727. Original provider-unavailability handling and ordinary useful replies remain.
+Require independent review and entry-path evidence for this narrower reliability repair.

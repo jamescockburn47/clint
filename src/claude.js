@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import config from './config.js';
 import { createQwenChatClient } from './qwen-chat.js';
+import { finishToolAttempt } from './tool-attempt-notice.js';
 import { getSystemPrompt } from './prompt.js';
 import { TOOL_DEFINITIONS } from './tools/definitions.js';
 import { capabilityPrompt } from './runtime-status.js';
@@ -325,9 +326,9 @@ class LLMService {
 
     let loopCount = 0;
     while (response.stop_reason === 'tool_use' && loopCount < MAX_TOOL_LOOPS) {
-      loopCount++;
-      const toolUseBlocks = response.content.filter(b => b.type === 'tool_use');
+      const toolUseBlocks = Array.isArray(response.content) ? response.content.filter(b => b?.type === 'tool_use') : [];
       if (toolUseBlocks.length === 0) break;
+      loopCount++;
 
       messages.push({ role: 'assistant', content: response.content });
       const toolResults = [];
@@ -354,7 +355,7 @@ class LLMService {
       logger.info({ requestId, loop: loopCount, input: response.usage?.input_tokens, output: response.usage?.output_tokens, provider }, 'tool loop');
     }
 
-    return { response, provider, modelName: loopModel, usedFallback };
+    return { response, provider, modelName: loopModel, usedFallback, toolRounds: loopCount };
   }
 
   /** Main entry point — handles routing, cortex, tools, quality gate */
@@ -512,6 +513,9 @@ class LLMService {
         };
       }
       const { response, provider, modelName, usedFallback } = toolLoopResult;
+      const terminalNotice = finishToolAttempt(toolLoopResult, { category, classifySource, routeReason,
+        routeForceClaude: forceClaude, requestId });
+      if (terminalNotice) { recordCallInUsage(); return terminalNotice; }
       // A length-truncated answer is still the model's answer: deliver it flagged rather than as silence.
       const truncated = response.stop_reason === 'max_tokens';
       if (response.stop_reason !== 'end_turn' && !truncated) throw new Error(`incomplete_model_response:${response.stop_reason}`);
