@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import config from './config.js';
 import { createQwenChatClient } from './qwen-chat.js';
 import { finishToolAttempt } from './tool-attempt-notice.js';
+import { createArchiveAttemptEvidence } from './archive-attempt-evidence.js';
 import { getSystemPrompt } from './prompt.js';
 import { TOOL_DEFINITIONS } from './tools/definitions.js';
 import { capabilityPrompt } from './runtime-status.js';
@@ -211,9 +212,7 @@ class LLMService {
       };
     }
 
-    // Default: MiniMax cloud (Anthropic-compatible, ~5 s end-to-end with
-    // tools) when available — the user-perceived latency on Qwen 27B
-    // local was 30-80 s and it failed at structured tool selection.
+    // Default for this remaining provider path: MiniMax when configured.
     if (this._minimaxClient) {
       return {
         activeClient: this._minimaxClient,
@@ -225,7 +224,6 @@ class LLMService {
       };
     }
 
-    // Fallback when MiniMax isn't configured: Qwen local, then Claude.
     if (this._qwenClient) {
       return {
         activeClient: this._qwenClient,
@@ -261,6 +259,7 @@ class LLMService {
 
   /** Run the tool use loop, returning final response */
   async _toolLoop(activeClient, activeModel, breaker, system, messages, cachedTools, isGroup, mode, senderJid, chatJid, requestId, category) {
+    const archiveEvidence = createArchiveAttemptEvidence();
     let loopClient = activeClient;
     let loopModel = activeModel;
     let loopBreaker = breaker;
@@ -342,6 +341,7 @@ class LLMService {
           : 'Tool denied: it was not offered for this request.';
         logger.info({ requestId, tool: toolName, chars: result.length }, 'tool result');
         result = boundToolResult(toolName, result);
+        archiveEvidence?.add(toolName, result);
         toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: result });
       }
       messages.push({ role: 'user', content: toolResults });
@@ -355,7 +355,8 @@ class LLMService {
       logger.info({ requestId, loop: loopCount, input: response.usage?.input_tokens, output: response.usage?.output_tokens, provider }, 'tool loop');
     }
 
-    return { response, provider, modelName: loopModel, usedFallback, toolRounds: loopCount };
+    return { response, provider, modelName: loopModel, usedFallback, toolRounds: loopCount,
+      archiveEvidence: archiveEvidence?.render() || '' };
   }
 
   /** Main entry point — handles routing, cortex, tools, quality gate */

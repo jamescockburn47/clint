@@ -1,19 +1,27 @@
 # Clint overhaul policy
 
-15 September v21 candidate removes silent query-word loss after twelve unique terms
+15 September v22 candidate retains complete attributed archive records already read
+when a private owner read-only Slack model attempt fails. Evidence is request-local,
+scope-gated, hash-checked, size-bounded and never taken from model prose. Preserve the
+failure notice and all output restrictions; never shorten an included source record.
+No extra inference or retrieval is allowed for this fallback. Source/probe review,
+canonical verification and installed synthetic delivery proof precede deployment.
+See docs/clint-archive-failure-evidence.md. v21 remains live until those checks pass.
+
+15 September v21 release removes silent query-word loss after twelve unique terms
 in private archive search. The existing 300-character validation, quoted literal FTS
 tokens, read-only snapshot, complete-record and output-size boundaries remain. This is
 a deterministic retrieval repair, not hybrid/graph recall or model answer accuracy.
 Require query-position/length/injection regressions and installed synthetic evidence
 delivery before claiming the release; no private archive rewrite is involved.
 
-15 September v20 candidate adds only complete-message `clint help`/`clint status`
+15 September v20 release adds only complete-message `clint help`/`clint status`
 diagnostics in the issued private owner read-only Slack path. Reuse the core tool
 inventory/runtime observer and existing topic/canary/credential/delivery boundaries.
 No model inference or intent classification is involved. Preserve failed small-gate,
 teaching and source-detector trials; this feature does not reverse them. See
-docs/clint-quick-commands.md. Candidate is not deployed until reviewed canonical
-verification and installed-service proof pass; live v19 remains active meanwhile.
+docs/clint-quick-commands.md. Reviewed canonical verification and installed-service
+proof passed; those diagnostics remain live in v21.
 
 Clint serves personal assistance and technical/research work equally. The EVO is
 the execution host; this Windows worktree is the reviewable development source.

@@ -4,7 +4,7 @@ import { isControlReply } from './policy.js';
 import { teachingContextText } from './teaching.js';
 import { quickCommand } from './quick-commands.js';
 
-export const SLACK_PROMPT_VERSION = 'clint-shared-core-v21';
+export const SLACK_PROMPT_VERSION = 'clint-shared-core-v22';
 
 /** Issue request scope, handle explicit diagnostics and pass ordinary conversation to Clint's core. */
 export function makeSlackGenerator(config, service = new LLMService({

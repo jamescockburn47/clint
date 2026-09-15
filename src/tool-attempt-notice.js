@@ -23,8 +23,10 @@ export function finishToolAttempt(outcome, meta, scope = currentConversation()) 
   if (!reason && (response.stop_reason !== 'end_turn' || malformed || !text.trim() ||
       text.length > 10000 || isControlReply(text) || /<tool_call\b|<function=/i.test(text))) reason = 'unusable_response';
   if (!reason) return null;
-  return { text: NOTICES[reason], meta: { ...meta,
+  const evidence = scope.privateContext && !scope.webOnly && typeof outcome.archiveEvidence === 'string'
+    && outcome.archiveEvidence.length <= 9000 ? outcome.archiveEvidence : '';
+  return { text: NOTICES[reason] + evidence, meta: { ...meta,
     provider: outcome.provider, modelName: outcome.modelName, providerReason: 'tool_attempt_incomplete',
     incomplete: true, termination: reason, toolRounds: outcome.toolRounds,
-    critiqueApplied: false, applicationNotice: true } };
+    critiqueApplied: false, applicationNotice: true, archiveEvidenceIncluded: !!evidence } };
 }
