@@ -1,14 +1,15 @@
 import { LLMService } from '../claude.js';
-import { createConversationContext } from '../conversation-context.js';
+import { createConversationContext, withConversationContext } from '../conversation-context.js';
 import { isControlReply } from './policy.js';
 import { teachingContextText } from './teaching.js';
+import { quickCommand } from './quick-commands.js';
 
-export const SLACK_PROMPT_VERSION = 'clint-shared-core-v19';
+export const SLACK_PROMPT_VERSION = 'clint-shared-core-v20';
 
-/** Transport formatting only. Identity, personality, recall, tools and filters live in Clint's core. */
+/** Issue request scope, handle explicit diagnostics and pass ordinary conversation to Clint's core. */
 export function makeSlackGenerator(config, service = new LLMService({
   qwenChatUrl: config.modelUrl, qwenChatModel: config.modelId,
-})) {
+}), quick = quickCommand) {
   return async (event, history, teaching = null) => {
     if (event.team !== config.teamId || event.channel !== config.channelId || event.owner !== config.ownerId) {
       throw new Error('slack_conversation_identity_mismatch');
@@ -17,6 +18,9 @@ export function makeSlackGenerator(config, service = new LLMService({
     const conversation = createConversationContext({ transport: 'slack', conversationId: chat,
       actorId: event.owner, ownerId: config.ownerId, audience: 'group', policy: config.policy || {},
       localOnly: true, readOnly: true });
+    const immediate = await withConversationContext(conversation, () => quick(event.text, config,
+      { getTools: () => service._getAvailableTools?.(true, chat) || [] }));
+    if (immediate !== null) return immediate;
     const exchanges = [];
     let size = 0;
     for (const item of [...history].reverse()) {

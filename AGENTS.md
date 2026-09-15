@@ -1,5 +1,13 @@
 # Clint overhaul policy
 
+15 September v20 candidate adds only complete-message `clint help`/`clint status`
+diagnostics in the issued private owner read-only Slack path. Reuse the core tool
+inventory/runtime observer and existing topic/canary/credential/delivery boundaries.
+No model inference or intent classification is involved. Preserve failed small-gate,
+teaching and source-detector trials; this feature does not reverse them. See
+docs/clint-quick-commands.md. Candidate is not deployed until reviewed canonical
+verification and installed-service proof pass; live v19 remains active meanwhile.
+
 Clint serves personal assistance and technical/research work equally. The EVO is
 the execution host; this Windows worktree is the reviewable development source.
 
