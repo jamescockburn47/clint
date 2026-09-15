@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { existsSync } from 'node:fs';
 import { z } from 'zod';
 import { createHash } from 'node:crypto';
+import { readRecordPage } from './record-pages.js';
 
 export const sourceRecord = z.object({
   id: z.string().min(1).max(200), source: z.string().min(1).max(60),
@@ -58,20 +59,34 @@ export function queryKnowledge(path, operation, input = {}) {
       sources: db.prepare('SELECT source,role,count(*) AS chunks,min(date) AS earliest,max(date) AS latest FROM records GROUP BY source,role').all(),
       semanticAnalysis: 'not_established_by_indexing', liveAccountConnection: false };
     if (operation === 'read' || operation === 'record') {
-      const { id } = z.object({ id: z.string().min(1).max(200) }).strict().parse(input);
+      const readInput = z.object({ id: z.string().min(1).max(200),
+        part: z.number().int().nonnegative().optional(),
+        record_version: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict().parse(input);
+      const { id } = readInput;
       const row = db.prepare('SELECT * FROM records WHERE id=?').get(id);
-      if (operation === 'record' && row) return { ...readJoinedRecord(db, row), ...evidence, recordedAt: metadata.recordedAt };
+      if (operation === 'record' && row) return {
+        ...(row.parts > 3 || readInput.part !== undefined || readInput.record_version !== undefined
+          ? readRecordPage(db, row, readInput, metadata.inputSha256, sourceRecord) : readJoinedRecord(db, row)),
+        ...evidence, recordedAt: metadata.recordedAt };
       return { state: 'snapshot', ...evidence, records: row ? [withNext(row)] : [], recordedAt: metadata.recordedAt };
     }
+    let rows;
+    if (operation === 'ranked') {
+      const { ids } = z.object({ ids: z.array(z.string().min(1).max(200)).max(48) }).strict().parse(input);
+      rows = ids.map(id => db.prepare('SELECT * FROM records WHERE id=?').get(id)).filter(Boolean);
+    } else {
     const { query } = z.object({ query: z.string().min(1).max(300) }).strict().parse(input);
     // The validated 300-character query already bounds work. Dropping later words
     // can remove its only distinguishing name or topic.
     const terms = [...new Set(query.match(/[\p{L}\p{N}_-]+/gu) || [])];
-    if (!terms.length) return { state: 'snapshot', ...evidence, records: [] };
+    if (!terms.length) return { state: 'snapshot', ...evidence, inputSha256: metadata.inputSha256, records: [], candidates: [] };
     // Quote tokens: user input never becomes FTS grammar or SQL.
     const match = terms.map(term => `"${term}"`).join(' OR ');
-    const rows = db.prepare(`SELECT r.* FROM lookup JOIN records r ON r.rowid=lookup.rowid
-      WHERE lookup MATCH ? ORDER BY bm25(lookup),r.id LIMIT 12`).all(match);
+    rows = db.prepare(`SELECT r.* FROM lookup JOIN records r ON r.rowid=lookup.rowid
+      WHERE lookup MATCH ? ORDER BY bm25(lookup),r.id LIMIT ?`).all(match, operation === 'candidates' ? 48 : 12);
+    if (operation === 'candidates') return { state: 'snapshot', ...evidence, inputSha256: metadata.inputSha256,
+      candidates: rows.map(row => ({ id: row.id, recordKey: JSON.stringify([row.source, row.episode, row.reference]) })) };
+    }
     const records = [], unavailableRecords = [], seen = new Set();
     for (const row of rows) {
       const key = JSON.stringify([row.source, row.episode, row.reference]);
@@ -79,7 +94,9 @@ export function queryKnowledge(path, operation, input = {}) {
       seen.add(key);
       const joined = readJoinedRecord(db, row);
       if (joined.records.length) records.push(joined.records[0]);
-      else unavailableRecords.push({ id: row.id, reason: joined.reason });
+      else unavailableRecords.push({ id: row.id, reason: joined.reason,
+        ...(joined.reason === 'record_too_large' ? { readWith: 'knowledge_read',
+          input: { id: row.id }, readingMode: 'versioned_pages' } : {}) });
       if (records.length === 3) break;
     }
     return { state: 'snapshot', ...evidence, recordedAt: metadata.recordedAt, records, unavailableRecords,

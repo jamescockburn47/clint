@@ -9,6 +9,7 @@ import { makeSlackGenerator, SLACK_PROMPT_VERSION } from './model.js';
 import coreConfig from '../config.js';
 import { validateSlackCoreConfig } from './core-config.js';
 import { checkEvoHealth } from '../memory.js';
+import { ProactiveWorker } from './proactive.js';
 
 // Status words plus an optional short error code. Never source text, tokens or SDK bodies.
 const report = (status, detail) => console.log(JSON.stringify(
@@ -34,6 +35,7 @@ async function main() {
   const store = new SlackStore(config.dataDir);
   store.recover();
   const worker = new SlackWorker({ store, config, web, generate: makeSlackGenerator(config), report });
+  const proactive = new ProactiveWorker({ config, web, inbox: store, interactive: worker, report });
   const socket = new SocketModeClient({ appToken: config.appToken, logger: sdkLogger,
     clientOptions: { logger: sdkLogger, retryConfig: { retries: 2 }, timeout: 15000 } });
   let stopping = false;
@@ -46,13 +48,14 @@ async function main() {
       // Durable persistence precedes ACK. Unauthorized events are discarded without storing text.
       await ack();
       report(outcome);
-      if (outcome === 'queued') void drain();
+      if (outcome === 'queued') { proactive.interrupt(); void drain(); }
     } catch (err) { report('inbox_or_ack_failed', errorCode(err)); }
   });
   socket.on('error', () => report('socket_error'));
   socket.on('connected', () => report('socket_connected'));
   const timer = setInterval(() => void drain(), 15000);
   const healthTimer = setInterval(() => void checkEvoHealth({ recover: false }), 60000);
+  const proactiveTimer = setInterval(() => void proactive.tick(), 60000);
   const inboxTimer = setInterval(() => {
     const stuck = store.counts().filter(row => ['failed', 'uncertain', 'blocked'].includes(row.state));
     if (stuck.length) report('inbox_needs_attention', stuck.map(row => `${row.state}=${row.count}`).join(','));
@@ -62,8 +65,9 @@ async function main() {
     stopping = true;
     clearInterval(timer);
     clearInterval(healthTimer);
+    clearInterval(proactiveTimer);
     clearInterval(inboxTimer);
-    try { await socket.disconnect(); await worker.stop(); store.close(); }
+    try { await socket.disconnect(); await proactive.stop(); await worker.stop(); store.close(); }
     catch (err) { report('shutdown_failed', errorCode(err)); code = 1; }
     process.exit(code);
   };

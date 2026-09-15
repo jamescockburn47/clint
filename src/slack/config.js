@@ -24,6 +24,7 @@ const schema = z.object({
       !url.username && !url.password && !url.search && !url.hash && url.pathname === '/';
   }),
   SLACK_MODEL_ID: z.enum(['qwen3.8-27b', 'qwen3.8-flash-next']).default('qwen3.8-27b'),
+  SLACK_PROACTIVE_ENABLED: z.enum(['true', 'false']).default('true'),
 });
 
 /** Dedicated configuration boundary: never inherit the legacy bot's credentials. */
@@ -36,6 +37,7 @@ export function loadSlackConfig(input = process.env) {
     appId: v.SLACK_APP_ID, teamId: v.SLACK_TEAM_ID, channelId: v.SLACK_CHANNEL_ID,
     ownerId: v.SLACK_OWNER_ID, dataDir: v.SLACK_DATA_DIR,
     modelUrl: v.SLACK_MODEL_URL, modelId: v.SLACK_MODEL_ID,
+    proactiveEnabled: v.SLACK_PROACTIVE_ENABLED === 'true',
     policy: Object.freeze({ ...v.SLACK_CHANNEL_POLICY,
       blockedTopics: Object.freeze(v.SLACK_CHANNEL_POLICY.blockedTopics),
       allowedProjects: Object.freeze(v.SLACK_CHANNEL_POLICY.allowedProjects) }) });

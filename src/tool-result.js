@@ -1,5 +1,5 @@
 import { GOOGLE_READ_NAMES } from './tools/google-definitions.js';
-const EVIDENCE_TOOLS = new Set(['system_status', 'knowledge_status', 'knowledge_search', 'knowledge_read', 'repository_status', ...GOOGLE_READ_NAMES]);
+const EVIDENCE_TOOLS = new Set(['system_status', 'knowledge_status', 'knowledge_search', 'knowledge_read', 'repository_status', 'proactive_status', 'proactive_report', ...GOOGLE_READ_NAMES]);
 const EVIDENCE_LIMIT = 24000;
 const PARSE_LIMIT = 256000;
 const DEFAULT_LIMIT = 1500;

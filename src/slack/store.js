@@ -64,5 +64,17 @@ export class SlackStore {
   counts() {
     return this.db.prepare('SELECT state,count(*) AS count FROM events GROUP BY state').all();
   }
+  recentStatements(config, now) {
+    const rows = this.db.prepare(`SELECT id,text,owner,ts FROM events WHERE team=? AND channel=? AND owner=?
+      AND created>=? ORDER BY ts DESC LIMIT 20`).all(config.teamId, config.channelId, config.ownerId, now - 48 * 3600000);
+    const selected = [];
+    let size = 0;
+    for (const row of rows) {
+      size += JSON.stringify(row).length;
+      if (size > 16000) break;
+      selected.unshift({ ...row, timestamp: new Date(Number(row.ts) * 1000).toISOString() });
+    }
+    return selected;
+  }
   close() { this.db.close(); }
 }

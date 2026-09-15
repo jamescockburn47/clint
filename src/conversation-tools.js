@@ -6,6 +6,7 @@ import { runtimeStatusAllowed } from './runtime-status.js';
 import config from './config.js';
 import { GOOGLE_READ_NAMES } from './tools/google-definitions.js';
 import { outboundQuerySafe } from './outbound-query.js';
+import { PROACTIVE_NAMES } from './slack/proactive-tools.js';
 
 export const OWNER_ONLY_TOOLS = new Set(['gmail_search', 'gmail_read', 'gmail_draft', 'gmail_confirm_send',
   'soul_propose', 'soul_confirm', 'soul_learn', 'soul_forget', 'calendar_create_event', 'calendar_update_event',
@@ -25,6 +26,7 @@ export function permitsTool(name, input, scope = currentConversation(), core = c
   if (name === 'system_status' && scope?.transport === 'slack') return runtimeStatusAllowed(scope);
   if (name === 'repository_status') return repositoryAllowed(scope);
   if (KNOWLEDGE_NAMES.includes(name)) return knowledgeAllowed(scope);
+  if (PROACTIVE_NAMES.includes(name)) return scope?.transport === 'slack' && knowledgeAllowed(scope);
   // Owner authorizes contextual web research; cloud synthesis and unrelated services remain excluded.
   if (knowledgeAllowed(scope) && ['live_briefing',
     'sovren_site_access', 'lqc_knowledge', 'lqc_status'].includes(name)) return false;

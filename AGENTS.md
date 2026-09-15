@@ -1,12 +1,27 @@
 # Clint overhaul policy
 
-15 September v22 candidate retains complete attributed archive records already read
+15 September owner direction: restore useful agency in Slack. Raw-source hybrid
+retrieval, paginated long records and an independent proactive research/diary loop
+are authorised work; failed answer-generation experiments do not prohibit a measured
+retrieval improvement. Preserve their verdicts and evaluate each new mechanism.
+Current live release is v22; the working candidate adds resumable full-dimensional
+local embeddings, BM25/RRF ranking and versioned partial source pages. Partial dense
+coverage must be visible; lexical fallback always covers the whole snapshot.
+The candidate Slack scheduler performs local planning/reflection, contextual public
+research and Google primary-calendar reads, then sends a private morning briefing to
+James's exact authorised channel. This is the owner's requested proactive delivery.
+It may store reviewable hypotheses/reports, not promote facts, train weights or deploy
+code. Foreground messages cancel background inference. No messages to other people,
+calendar writes or purchases are authorised by this scheduler. Review source, run
+canonical verification and inspect actual model output before deployment.
+
+15 September live v22 retains complete attributed archive records already read
 when a private owner read-only Slack model attempt fails. Evidence is request-local,
 scope-gated, hash-checked, size-bounded and never taken from model prose. Preserve the
 failure notice and all output restrictions; never shorten an included source record.
 No extra inference or retrieval is allowed for this fallback. Source/probe review,
 canonical verification and installed synthetic delivery proof precede deployment.
-See docs/clint-archive-failure-evidence.md. v21 remains live until those checks pass.
+See docs/clint-archive-failure-evidence.md. Its reviewed installed delivery proof passed.
 
 15 September v21 release removes silent query-word loss after twelve unique terms
 in private archive search. The existing 300-character validation, quoted literal FTS

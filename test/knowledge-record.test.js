@@ -52,10 +52,10 @@ test('missing parts, duplicate part numbers, and conflicting attribution never e
     assert.deepEqual(result.records, []);
   }
 });
-test('large records are unavailable, never silently truncated or relabelled complete', async t => {
+test('an incomplete long record is unavailable even when the missing part is on a later page', async t => {
   const db = await fixture(t, [part(0, 'source', { parts: 4 })]);
   const result = queryKnowledge(db, 'record', { id: 'part-0' });
-  assert.equal(result.reason, 'record_too_large');
+  assert.equal(result.reason, 'record_incomplete');
   assert.deepEqual(result.records, []);
 });
 test('different episodes sharing a reference are never stitched together', async t => {

@@ -22,6 +22,7 @@ import { createRequestId } from './request-id.js';
 import logger from './logger.js';
 import { safeErrorCode } from './error-code.js';
 import { boundToolResult } from './tool-result.js';
+import { orderedToolReads } from './parallel-reads.js';
 import { currentConversation, isGroupConversation } from './conversation-context.js';
 import { OWNER_ONLY_TOOLS } from './conversation-tools.js';
 import { scopedResponse } from './conversation-response.js';
@@ -330,8 +331,7 @@ class LLMService {
       loopCount++;
 
       messages.push({ role: 'assistant', content: response.content });
-      const toolResults = [];
-      for (const toolUse of toolUseBlocks) {
+      const toolResults = await orderedToolReads(toolUseBlocks, async toolUse => {
         const offered = cachedTools.some(t => t.name === toolUse.name);
         const toolName = offered ? toolUse.name : 'unrecognized_tool';
         logger.info({ requestId, tool: toolName }, 'tool call');
@@ -341,9 +341,9 @@ class LLMService {
           : 'Tool denied: it was not offered for this request.';
         logger.info({ requestId, tool: toolName, chars: result.length }, 'tool result');
         result = boundToolResult(toolName, result);
-        archiveEvidence?.add(toolName, result);
-        toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: result });
-      }
+        return { type: 'tool_result', tool_use_id: toolUse.id, content: result };
+      });
+      toolResults.forEach((result, index) => archiveEvidence?.add(toolUseBlocks[index].name, result.content));
       messages.push({ role: 'user', content: toolResults });
 
       response = await loopBreaker.call(
