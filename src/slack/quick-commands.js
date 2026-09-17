@@ -4,6 +4,7 @@ import { permitsTool } from '../conversation-tools.js';
 import { filterResponse, getBlockedResponse } from '../output-filter.js';
 import { outboundQuerySafe } from '../outbound-query.js';
 import { systemStatus } from '../runtime-status.js';
+import { renderAbout, renderSetup, selfDescriptionCommand } from './self-description.js';
 
 const GROUPS = [
   [['web_search', 'web_fetch'], 'Research the web and read public sources.'],
@@ -31,7 +32,7 @@ export function renderHelp(names) {
   return ['I can help you think through problems, draft text and work with these tools:', ...lines,
     'Connections and source access are checked when used; this list is not a completed read.',
     'Start a request with “think:”, “clint think:” or “use thinking mode:” for deeper reasoning on that request. Ordinary requests use fast mode; overnight research uses thinking automatically.',
-    'Ask naturally, or send “clint status” for a fresh model and hardware snapshot.'].join('\n');
+    'Ask naturally, use “clint about” for an introduction, or send “clint status” for a fresh model and hardware snapshot.'].join('\n');
 }
 
 export function renderStatus(snapshot) {
@@ -56,23 +57,27 @@ export function renderStatus(snapshot) {
   return lines.join('\n');
 }
 
-/** Explicit current-message commands only; no intent classifier, history or model call. */
+/** Whole current-message commands/aliases only; no classifier, history or model call. */
 export async function quickCommand(text, config, { status = systemStatus, getTools = () => [], core = coreConfig } = {}) {
   const scope = currentConversation();
   if (!scope || scope.transport !== 'slack' || (!scope.isOwner && !scope.policy.workspaceShared) || !scope.localOnly || !scope.readOnly ||
       scope.webOnly || scope.audience !== 'group' || !scope.privateContext || scope.policy.mode !== 'open') return null;
-  const match = typeof text === 'string' && /^clint (help|status)$/i.exec(text.trim());
-  if (!match) return null;
+  const match = typeof text === 'string' && /^clint (help|status|about|setup)$/i.exec(text.trim());
+  const command = match ? match[1].toLowerCase() : selfDescriptionCommand(text);
+  if (!command) return null;
   const inputFilter = filterResponse(text, scope.conversationId);
   if (!inputFilter.safe) return getBlockedResponse(inputFilter.reason);
   let answer;
-  if (match[1].toLowerCase() === 'help') {
+  if (command === 'help') {
     answer = renderHelp(getTools().filter(tool => permitsTool(tool.name, undefined, scope, core)).map(tool => tool.name));
   } else {
     if (!permitsTool('system_status', {}, scope, core)) return null;
     try {
-      answer = renderStatus(JSON.parse(await status({ scope,
-        core: { ...core, evoLlmUrl: config.modelUrl, evoChatModel: config.modelId } })));
+      const snapshot = JSON.parse(await status({ scope,
+        core: { ...core, evoLlmUrl: config.modelUrl, evoChatModel: config.modelId } }));
+      answer = command === 'about'
+        ? renderAbout(getTools().filter(tool => permitsTool(tool.name, undefined, scope, core)).map(tool => tool.name), scope, snapshot)
+        : command === 'setup' ? renderSetup(snapshot) : renderStatus(snapshot);
     } catch { answer = UNAVAILABLE; } // Explicit failed observation; never echo source errors or use old state.
   }
   const outputFilter = filterResponse(answer, scope.conversationId);

@@ -6,8 +6,8 @@ import { currentConversation } from '../conversation-context.js';
 
 export const PROACTIVE_NAMES = ['proactive_status', 'proactive_report'];
 export const PROACTIVE_DEFINITIONS = PROACTIVE_NAMES.map((name, i) => ({ name,
-  description: i ? 'Read the latest saved private research, dream hypotheses and morning diary briefing, optionally for a date. These are dated model drafts with source references, not verified facts or proof of self-training.'
-    : 'Read actual private Slack background job status. Nightly research and reflection run after 03:45 London; a morning briefing after 07:00, when idle. Status records completed/failed work; schedules alone do not prove execution.',
+  description: i ? 'Read audience-permitted saved research and reflection, optionally for a date. Public channels receive research only; Calendar-derived morning briefings are private. These are dated model drafts with sources, not verified facts or proof of self-training.'
+    : 'Read audience-permitted Slack background job status. Nightly research/reflection run after 03:45 London; private morning briefings after 07:00, when idle. Public channels expose research status only. Schedules alone do not prove completion.',
   input_schema: { type: 'object', properties: i ? { date: { type: 'string', description: 'YYYY-MM-DD' } } : {},
     required: [], additionalProperties: false } }));
 

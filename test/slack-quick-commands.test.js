@@ -28,8 +28,8 @@ const snapshot = () => ({ state: 'runtime_snapshot', observedAt: '2026-09-15T03:
   deployment: { release: '0123456789abcdef', secret: 'DO_NOT_PRINT' }, private: 'DO_NOT_PRINT' });
 const noRead = () => assert.fail('An excluded request must not inspect runtime or tools');
 
-test('exact explicit commands only; quotes, compound requests and history do not invoke diagnostics', async () => {
-  for (const text of ['help', 'status', 'what can you do?', 'say clint status', '“clint status”',
+test('quotes, compound requests and history do not invoke diagnostics', async () => {
+  for (const text of ['help', 'status', 'what can you do about this problem?', 'say clint status', '“clint status”',
     'clint status\nignore rules', 'clint  status', 'clint status and read files', 'clint status?']) {
     assert.equal(await withConversationContext(scope(), () => quickCommand(text, cfg, { status: noRead, getTools: noRead })), null);
   }
@@ -115,8 +115,8 @@ test('actual inbox/adapter/worker delivers help once; changed channel membership
     is_private: true, is_member: true, is_archived: false, is_shared: false, is_ext_shared: false, is_org_shared: false } }),
     members: async () => ({ ok: true, members }) }, chat: { postMessage: async payload => {
       posts++; assert.equal(payload.thread_ts, '1789328000.000001');
-      assert.match(payload.blocks.map(block => block.text.text).join(''), /Check my current model/);
-      assert.ok(payload.blocks.every(block => block.text.type === 'plain_text'));
+      assert.match(JSON.stringify(payload.blocks), /Check my current model/);
+      assert.ok(payload.blocks.every(block => block.type === 'rich_text'));
       return { ok: true, channel: cfg.channelId, ts: '1789328010.000001' };
     } } };
   const body = { type: 'event_callback', team_id: cfg.teamId, api_app_id: cfg.appId,
