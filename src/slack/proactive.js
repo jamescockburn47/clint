@@ -9,6 +9,7 @@ import { createConversationContext, withConversationContext } from '../conversat
 import { filterResponse } from '../output-filter.js';
 import { outboundQuerySafe } from '../outbound-query.js';
 import core from '../config.js';
+import { RESEARCH_TIMEOUT_MS } from '../inference-policy.js';
 
 export const proactiveScope = config => JSON.stringify([config.teamId, config.channelId, config.ownerId]);
 export function localSchedule(now) {
@@ -45,7 +46,7 @@ export class ProactiveWorker {
     if (job.scope !== this.scopeKey || !['pending', 'ready'].includes(job.state) || job.state === 'pending' && job.attempts >= 3 ||
         job.attempts && this.now() - job.updated < 15 * 60000) return;
     this.controller = new AbortController();
-    const signal = AbortSignal.any([this.controller.signal, AbortSignal.timeout(8 * 60000)]);
+    const signal = AbortSignal.any([this.controller.signal, AbortSignal.timeout(RESEARCH_TIMEOUT_MS)]);
     const conversationId = `slack:${this.config.teamId}:${this.config.channelId}`;
     const scope = createConversationContext({ transport: 'slack', conversationId,
       actorId: this.config.ownerId, ownerId: this.config.ownerId, audience: 'group',

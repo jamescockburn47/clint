@@ -1,4 +1,5 @@
 const stamp = /^\d{10}\.\d{6}$/;
+export const MAX_REPLY_CHARACTERS = 32000;
 
 /** Owner messages in the configured private channel; other venues never enter the inbox. */
 export function acceptMention(body, cfg, botUserId) {
@@ -27,7 +28,7 @@ export function allowedChannel(info, cfg) {
 
 /** Plain text blocks prevent generated mentions/links from notifying people or unfurling. */
 export function replyPayload(event, text) {
-  if (typeof text !== 'string' || !text.trim() || text.length > 10000 || isControlReply(text)) {
+  if (typeof text !== 'string' || !text.trim() || text.length > MAX_REPLY_CHARACTERS || isControlReply(text)) {
     throw new Error('slack_invalid_reply');
   }
   const chunks = [];

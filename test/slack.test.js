@@ -197,7 +197,7 @@ test('generated mention syntax is rendered as plain text without notifications/u
   assert.equal(payload.blocks[0].text.type, 'plain_text');
   assert.equal(payload.unfurl_links, false); assert.equal(payload.parse, 'none');
   assert.equal(payload.text, 'Clint replied in this thread.');
-  assert.throws(() => replyPayload({}, 'x'.repeat(10001)));
+  assert.throws(() => replyPayload({}, 'x'.repeat(32001)));
 });
 test('release unit excludes home directories and uses a single durable process lock', () => {
   const unit = readFileSync(new URL('../evo-system/clint-slack.service', import.meta.url), 'utf8');

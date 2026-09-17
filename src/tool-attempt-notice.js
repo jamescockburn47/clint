@@ -1,5 +1,5 @@
 import { currentConversation } from './conversation-context.js';
-import { isControlReply } from './slack/policy.js';
+import { isControlReply, MAX_REPLY_CHARACTERS } from './slack/policy.js';
 
 const NOTICES = Object.freeze({
   provider_lost: 'I couldn’t get the model response needed to finish this attempt, so I don’t have a completed answer.',
@@ -21,7 +21,7 @@ export function finishToolAttempt(outcome, meta, scope = currentConversation()) 
   const malformed = blocks.some(block => !block || block.type !== 'text' || typeof block.text !== 'string');
   const text = blocks.filter(block => block?.type === 'text' && typeof block.text === 'string').map(block => block.text).join('\n');
   if (!reason && (response.stop_reason !== 'end_turn' || malformed || !text.trim() ||
-      text.length > 10000 || isControlReply(text) || /<tool_call\b|<function=/i.test(text))) reason = 'unusable_response';
+      text.length > MAX_REPLY_CHARACTERS || isControlReply(text) || /<tool_call\b|<function=/i.test(text))) reason = 'unusable_response';
   if (!reason) return null;
   const evidence = scope.privateContext && !scope.webOnly && typeof outcome.archiveEvidence === 'string'
     && outcome.archiveEvidence.length <= 9000 ? outcome.archiveEvidence : '';

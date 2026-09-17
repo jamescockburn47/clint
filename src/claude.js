@@ -259,7 +259,7 @@ class LLMService {
   }
 
   /** Run the tool use loop, returning final response */
-  async _toolLoop(activeClient, activeModel, breaker, system, messages, cachedTools, isGroup, mode, senderJid, chatJid, requestId, category) {
+  async _toolLoop(activeClient, activeModel, breaker, system, messages, cachedTools, isGroup, mode, senderJid, chatJid, requestId, category, inference = {}) {
     const archiveEvidence = createArchiveAttemptEvidence();
     let loopClient = activeClient;
     let loopModel = activeModel;
@@ -277,10 +277,11 @@ class LLMService {
           provider,
           isFirstRequest,
           hasTools,
-          defaultMaxTokens,
+          defaultMaxTokens: provider === 'qwen' ? (inference.maxTokens ?? defaultMaxTokens) : defaultMaxTokens,
         }),
         requestId,
         ...(provider === 'qwen' && ['conversational', 'recall', 'email', 'system'].includes(category) ? { enableThinking: false } : {}),
+        ...(provider === 'qwen' && typeof inference.enableThinking === 'boolean' ? { enableThinking: inference.enableThinking } : {}),
         system,
         messages,
         ...(hasTools ? { tools: cachedTools } : {}),
@@ -496,7 +497,7 @@ class LLMService {
       userContent.push({ type: 'text', text: context });
       const messages = [{ role: 'user', content: userContent }];
 
-      const toolLoopResult = await this._toolLoop(activeClient, activeModel, breaker, system, messages, cachedTools, isGroup, mode, senderJid, chatJid, requestId, category);
+      const toolLoopResult = await this._toolLoop(activeClient, activeModel, breaker, system, messages, cachedTools, isGroup, mode, senderJid, chatJid, requestId, category, options.inference);
 
       if (!toolLoopResult) {
         return {

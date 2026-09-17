@@ -64,7 +64,7 @@ test('post-tool loss and empty or malformed tool steps return notices, initial o
 
 test('truncation and unusable final content produce honest notices without another model request', async () => {
   for (const response of [{ ...reply('UNFINISHED'), stop_reason: 'max_tokens' },
-    reply('<tool_call>\n<function=unknown>'), reply('<think>internal</think>'), reply(' '), reply('a'.repeat(10001)),
+    reply('<tool_call>\n<function=unknown>'), reply('<think>internal</think>'), reply(' '), reply('a'.repeat(32001)),
     { stop_reason: 'end_turn', content: [null] }, { stop_reason: 'end_turn', content: [{ type: 'text', text: {} }] }]) {
     const out = await harness([response], { critique: true });
     assert.equal(out.requests.length, 1); assert.equal(out.reads.length, 0); assert.equal(out.critiques, 0);

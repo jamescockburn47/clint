@@ -30,6 +30,7 @@ export function renderHelp(names) {
   if (other.length) lines.push(`Other available tools: ${other.join(', ')}.`);
   return ['I can help you think through problems, draft text and work with these tools:', ...lines,
     'Connections and source access are checked when used; this list is not a completed read.',
+    'Start a request with “think:”, “clint think:” or “use thinking mode:” for deeper reasoning on that request. Ordinary requests use fast mode; overnight research uses thinking automatically.',
     'Ask naturally, or send “clint status” for a fresh model and hardware snapshot.'].join('\n');
 }
 

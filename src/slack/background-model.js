@@ -1,15 +1,22 @@
-/** Cancellable, bounded local synthesis. Foreground messages cancel this request. */
+import { inferenceBudget, FLASH_MODEL, checkFlashContext } from '../inference-policy.js';
+
+/** Cancellable thinking synthesis. Foreground messages cancel this request. */
 export function backgroundChat(config, signal, fetchFn = fetch) {
   let queue = Promise.resolve();
   return (system, input, maxTokens = 800) => {
+    void maxTokens; // Legacy final-answer hints must not cap the reasoning allowance.
     const run = async () => {
       signal.throwIfAborted();
+      const budget = inferenceBudget(true);
+      const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(budget.timeoutMs)]);
+      const body = { model: config.modelId,
+        messages: [{ role: 'system', content: system }, { role: 'user', content: input }],
+        max_tokens: budget.maxTokens, temperature: 0.3,
+        chat_template_kwargs: { enable_thinking: true }, stream: false };
+      if (config.modelId === FLASH_MODEL) await checkFlashContext(config.modelUrl, body, fetchFn, requestSignal);
       const response = await fetchFn(config.modelUrl + '/v1/chat/completions', {
-        method: 'POST', redirect: 'error', signal: AbortSignal.any([signal, AbortSignal.timeout(120000)]),
-        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: config.modelId,
-          messages: [{ role: 'system', content: system }, { role: 'user', content: input }],
-          max_tokens: Math.min(maxTokens, 1200), temperature: 0.3,
-          chat_template_kwargs: { enable_thinking: false }, stream: false }),
+        method: 'POST', redirect: 'error', signal: requestSignal,
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
       if (!response.ok) { await response.body?.cancel(); throw new Error('background_model_unavailable'); }
       const reader = response.body.getReader(), chunks = [];
@@ -19,7 +26,7 @@ export function backgroundChat(config, signal, fetchFn = fetch) {
           const { value, done } = await reader.read();
           if (done) break;
           size += value.byteLength;
-          if (size > 128000) throw new Error('background_model_response_too_large');
+          if (size > 2097152) throw new Error('background_model_response_too_large');
           chunks.push(value);
         }
         const data = JSON.parse(Buffer.concat(chunks).toString('utf8'));

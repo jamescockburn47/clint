@@ -136,7 +136,8 @@ test('background model rejects truncated output, uses cancellation and serialize
   const controller = new AbortController();
   const chat = backgroundChat({ modelUrl: 'http://127.0.0.1:11437', modelId: 'synthetic' }, controller.signal,
     async (_url, options) => { active++; peak = Math.max(peak, active);
-      assert.equal(JSON.parse(options.body).chat_template_kwargs.enable_thinking, false);
+      assert.equal(JSON.parse(options.body).chat_template_kwargs.enable_thinking, true);
+      assert.equal(JSON.parse(options.body).max_tokens, 32768);
       await new Promise(resolve => setTimeout(resolve, 5)); active--;
       return new Response(JSON.stringify({ choices: [{ finish_reason: 'length', message: { content: 'Incomplete answer' } }] })); });
   const results = await Promise.allSettled([chat('system', 'one'), chat('system', 'two')]);

@@ -16,6 +16,7 @@
 // MiniMax instead. The 27B dense has no vision head; MiniMax does.
 
 import logger from './logger.js';
+import { FLASH_MODEL, inferenceBudget, checkFlashContext } from './inference-policy.js';
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 const MAX_RECENT_TELEMETRY = 100;
@@ -205,10 +206,12 @@ export function createQwenChatClient({ baseUrl, defaultModel = 'qwen3.6-27b', ti
     const requestStarted = Date.now();
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const flash = payload.model === FLASH_MODEL;
+    const timer = setTimeout(() => controller.abort(), flash ? inferenceBudget(enableThinking === true).timeoutMs : timeoutMs);
     let res;
     let oai;
     try {
+      if (flash) await checkFlashContext(normalisedBase, payload, fetchFn, controller.signal);
       res = await fetchFn(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -222,6 +225,9 @@ export function createQwenChatClient({ baseUrl, defaultModel = 'qwen3.6-27b', ti
       }
       oai = await res.json();
     } catch (err) {
+      if (err.message === 'flash_context_budget_exceeded') return { content: [{ type: 'text', text:
+        'This request exceeds my input allowance after reserving space for thinking and the answer. Please narrow the source material or start a new thread; I have not silently cut the evidence.' }],
+        stop_reason: 'end_turn', usage: { input_tokens: 0, output_tokens: 0 } };
       // Provider errors can echo full prompts. Keep both logs and propagated errors redacted.
       logger.warn({ requestId: requestId || null, status: res?.status || null }, 'qwen-chat: request failed');
       throw new Error(res && !res.ok ? `qwen-chat ${res.status}` : 'qwen-chat request failed');
@@ -237,6 +243,7 @@ export function createQwenChatClient({ baseUrl, defaultModel = 'qwen3.6-27b', ti
       payloadChars: payloadText.length,
       elapsedMs: Date.now() - requestStarted,
       maxTokens: max_tokens,
+      thinking: enableThinking === true,
       promptTokens: oai?.usage?.prompt_tokens || 0,
       completionTokens: oai?.usage?.completion_tokens || 0,
     };
