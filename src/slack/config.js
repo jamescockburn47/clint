@@ -7,6 +7,7 @@ const schema = z.object({
   SLACK_BOT_TOKEN: z.string().regex(/^xoxb-[A-Za-z0-9-]+$/),
   SLACK_APP_ID: id('A'), SLACK_TEAM_ID: id('T'),
   SLACK_CHANNEL_ID: id('[CG]'), SLACK_OWNER_ID: id('[UW]'),
+  SLACK_PUBLIC_CHANNEL_ID: id('C').optional(),
   SLACK_DATA_DIR: z.string().refine(isAbsolute),
   SLACK_CHANNEL_POLICY: z.string().default('{"mode":"colleague"}').transform((value, ctx) => {
     try { return JSON.parse(value); }
@@ -33,9 +34,11 @@ export function loadSlackConfig(input = process.env) {
   if (!result.success) throw new Error(`slack_invalid_configuration:${
     result.error.issues.map(issue => issue.path.join('.')).join(',')}`);
   const v = result.data;
+  if (v.SLACK_PUBLIC_CHANNEL_ID === v.SLACK_CHANNEL_ID) throw new Error('slack_channels_must_differ');
   return Object.freeze({ appToken: v.SLACK_APP_TOKEN, botToken: v.SLACK_BOT_TOKEN,
     appId: v.SLACK_APP_ID, teamId: v.SLACK_TEAM_ID, channelId: v.SLACK_CHANNEL_ID,
     ownerId: v.SLACK_OWNER_ID, dataDir: v.SLACK_DATA_DIR,
+    publicChannelId: v.SLACK_PUBLIC_CHANNEL_ID,
     modelUrl: v.SLACK_MODEL_URL, modelId: v.SLACK_MODEL_ID,
     proactiveEnabled: v.SLACK_PROACTIVE_ENABLED === 'true',
     policy: Object.freeze({ ...v.SLACK_CHANNEL_POLICY,

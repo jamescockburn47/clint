@@ -5,6 +5,7 @@ import { allowedChannel } from './policy.js';
  */
 export async function authorizeChannel(web, config) {
   if (!allowedChannel(await web.conversations.info({ channel: config.channelId }), config)) return false;
+  if (config.workspaceShared === true) return true; // Exact local public channel; actor checked separately.
   if (config.policy?.mode !== 'open') return true;
   if (!config.botUserId || config.botUserId === config.ownerId) return false;
   const result = await web.conversations.members({ channel: config.channelId, limit: 200 });

@@ -20,6 +20,8 @@ const READ_ONLY_TOOLS = new Set([...PUBLIC_READS, 'soul_read']);
 
 /** One execution predicate shared by schema selection, ordinary calls and planner steps. */
 export function permitsTool(name, input, scope = currentConversation(), core = config) {
+  if (scope?.transport === 'slack' && scope.policy.workspaceShared &&
+      (GOOGLE_READ_NAMES.includes(name) || /^(gmail_|calendar_|drive_|google_)/.test(name))) return false;
   // Seeded project definitions have no verified freshness/provenance contract for Slack.
   if (scope?.transport === 'slack' && name.startsWith('project_')) return false;
   if (scope?.transport === 'slack' && name.startsWith('memory_') && !core.evoMemoryEnabled) return false;

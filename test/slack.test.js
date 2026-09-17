@@ -194,7 +194,8 @@ test('adapter calls shared core with authenticated audience, local inference and
 });
 test('generated mention syntax is rendered as plain text without notifications/unfurls', () => {
   const payload = replyPayload(acceptMention(body(), cfg, bot), '<!channel> <@U12345678> https://example.com');
-  assert.equal(payload.blocks[0].text.type, 'plain_text');
+  assert.equal(payload.blocks[0].type, 'rich_text');
+  assert.equal(payload.blocks[0].elements[0].elements[0].type, 'text');
   assert.equal(payload.unfurl_links, false); assert.equal(payload.parse, 'none');
   assert.equal(payload.text, 'Clint replied in this thread.');
   assert.throws(() => replyPayload({}, 'x'.repeat(32001)));

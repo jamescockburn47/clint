@@ -56,7 +56,8 @@ describe('self-awareness source of truth', () => {
       policy: { mode: 'open' } });
     const prompt = withConversationContext(scope, () => getSystemPrompt('professional', true, true, 'system', scope.conversationId));
     assert.doesNotMatch(prompt, /mention\/prefix-only|this request uses local Qwen/);
-    assert.match(prompt, /Every incoming owner message is directed to you/);
+    assert.match(prompt, /Every admitted incoming message in this Slack channel is directed to you/);
+    assert.match(prompt, /Address the actual sender; do not assume they are James/);
     assert.match(prompt, /Missing observations remain unknown/);
     assert.match(prompt, /Slack DMs are not connected/);
   });

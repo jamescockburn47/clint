@@ -10,6 +10,7 @@ import coreConfig from '../config.js';
 import { validateSlackCoreConfig } from './core-config.js';
 import { checkEvoHealth } from '../memory.js';
 import { ProactiveWorker } from './proactive.js';
+import { channelConfigs, authorizeActor } from './workspace-channels.js';
 
 // Status words plus an optional short error code. Never source text, tokens or SDK bodies.
 const report = (status, detail) => console.log(JSON.stringify(
@@ -29,12 +30,14 @@ async function main() {
   if (!auth.ok || auth.team_id !== config.teamId || !auth.bot_id || !auth.user_id ||
       auth.user_id === config.ownerId) throw new Error('slack_wrong_installation');
   config = Object.freeze({ ...config, botUserId: auth.user_id });
-  if (!await authorizeChannel(web, config)) {
-    throw new Error('slack_channel_not_ready');
-  }
+  const channels = channelConfigs(config);
+  for (const channel of channels) if (!await authorizeChannel(web, channel)) throw new Error('slack_channel_not_ready');
+  const resolveConfig = event => channels.find(channel => channel.channelId === event.channel);
+  const generators = new Map(channels.map(channel => [channel.channelId, makeSlackGenerator(channel)]));
   const store = new SlackStore(config.dataDir);
   store.recover();
-  const worker = new SlackWorker({ store, config, web, generate: makeSlackGenerator(config), report });
+  const worker = new SlackWorker({ store, config, web, resolveConfig,
+    generate: (event, ...args) => generators.get(event.channel)(event, ...args), report });
   const proactive = new ProactiveWorker({ config, web, inbox: store, interactive: worker, report });
   const socket = new SocketModeClient({ appToken: config.appToken, logger: sdkLogger,
     clientOptions: { logger: sdkLogger, retryConfig: { retries: 2 }, timeout: 15000 } });
@@ -43,7 +46,9 @@ async function main() {
   socket.on('slack_event', async ({ body, ack }) => {
     try {
       if (stopping) return;
-      const event = acceptMention(body, config, auth.user_id);
+      const channel = channels.find(candidate => candidate.channelId === body?.event?.channel);
+      let event = channel ? acceptMention(body, channel, auth.user_id) : null;
+      if (event && !await authorizeActor(web, channel, event)) event = null;
       const outcome = event ? store.enqueue(event, Date.now()) : 'rejected';
       // Durable persistence precedes ACK. Unauthorized events are discarded without storing text.
       await ack();

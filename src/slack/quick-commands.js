@@ -59,7 +59,7 @@ export function renderStatus(snapshot) {
 /** Explicit current-message commands only; no intent classifier, history or model call. */
 export async function quickCommand(text, config, { status = systemStatus, getTools = () => [], core = coreConfig } = {}) {
   const scope = currentConversation();
-  if (!scope || scope.transport !== 'slack' || !scope.isOwner || !scope.localOnly || !scope.readOnly ||
+  if (!scope || scope.transport !== 'slack' || (!scope.isOwner && !scope.policy.workspaceShared) || !scope.localOnly || !scope.readOnly ||
       scope.webOnly || scope.audience !== 'group' || !scope.privateContext || scope.policy.mode !== 'open') return null;
   const match = typeof text === 'string' && /^clint (help|status)$/i.exec(text.trim());
   if (!match) return null;

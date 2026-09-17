@@ -5,7 +5,8 @@ import config from './config.js';
 import { currentConversation } from './conversation-context.js';
 
 export const runtimeStatusAllowed = (scope = currentConversation()) =>
-  !!scope?.isOwner && !!scope.localOnly && !scope.webOnly && scope.audience !== 'unknown';
+  !!(scope?.isOwner || (scope?.transport === 'slack' && scope.policy.workspaceShared && scope.readOnly)) &&
+  !!scope.localOnly && !scope.webOnly && scope.audience !== 'unknown';
 const number = value => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
 const label = value => typeof value === 'string' && value.length <= 160 && /^[\w .+():/\\-]+$/.test(value) ? value : null;
 const integer = text => /^\d+$/.test(text?.trim() || '') ? number(Number(text.trim())) : null;
@@ -98,7 +99,7 @@ export async function observeHardware({ read = readFile, list = readdir, host = 
 export function capabilityPrompt(tools, scope = currentConversation()) {
   if (scope?.transport !== 'slack') return '';
   return '\n\n## Current request capabilities\n' + JSON.stringify({
-    transport: 'Slack private channel', directMessagesConnected: false, readOnly: scope.readOnly,
+    transport: scope.policy.workspaceShared ? 'Slack workspace public channel' : 'Slack private channel', directMessagesConnected: false, readOnly: scope.readOnly,
     offeredTools: tools.map(tool => tool.name), archivePermission: !!scope.privateContext,
     modelInference: scope.localOnly ? 'local only, no cloud fallback' : 'not verified here',
   }) + '\nThese are offered operations, not evidence their backing services are healthy. Describe help in ordinary language. '

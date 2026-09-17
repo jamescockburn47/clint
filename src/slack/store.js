@@ -35,11 +35,11 @@ export class SlackStore {
     return this.db.prepare("SELECT * FROM events WHERE state IN ('queued','ready') ORDER BY ts LIMIT 1").get();
   }
   /** Thread replies recall their thread; a top-level message recalls the channel's recent exchanges. */
-  history(event) {
+  history(event, allActors = false) {
     const root = event.thread === event.ts;
-    return this.db.prepare(`SELECT text,answer,ts FROM events WHERE team=? AND channel=?
-      AND owner=? AND (?=1 OR thread=?) AND state='sent' AND ts<? ORDER BY ts DESC LIMIT 10`)
-      .all(event.team, event.channel, event.owner, root ? 1 : 0, event.thread, event.ts).reverse();
+    return this.db.prepare(`SELECT text,answer,ts,owner FROM events WHERE team=? AND channel=?
+      AND (?=1 OR owner=?) AND (?=1 OR thread=?) AND state='sent' AND ts<? ORDER BY ts DESC LIMIT 10`)
+      .all(event.team, event.channel, allActors ? 1 : 0, event.owner, root ? 1 : 0, event.thread, event.ts).reverse();
   }
   contextBarrier(event) {
     return this.db.prepare('SELECT max(ts) AS stamp FROM events WHERE team=? AND channel=? AND owner=?')

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { currentConversation } from '../conversation-context.js';
 import { createGoogleReader, googleError } from './google-client.js';
 import { knowledgeAllowed } from '../knowledge/tools.js';
 import { BINARY_DOCUMENT_TYPES, XLSX_MIME, extractDocument } from './document-extract.js';
@@ -23,7 +24,7 @@ const read = createGoogleReader();
 
 export async function googleRead(name, input, { request = read, allowed = knowledgeAllowed, extract = extractDocument,
   now = () => new Date() } = {}) {
-  if (!allowed()) return JSON.stringify({ state: 'not_authorized' });
+  if (currentConversation()?.policy.workspaceShared || !allowed()) return JSON.stringify({ state: 'not_authorized' });
   const parsed = schemas[name]?.safeParse(input);
   if (!parsed?.success) return JSON.stringify({ state: 'invalid_input' });
   const args = parsed.data;

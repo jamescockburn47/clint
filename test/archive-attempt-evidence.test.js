@@ -92,7 +92,7 @@ test('archive control-tag examples are omitted whole so delivery cannot trigger 
     assert.match(text, /│ The proposal remains unconfirmed\./);
     assert.match(text, /Some retrieved records could not be included/);
     const delivered = replyPayload({ channel: 'synthetic', thread: 'synthetic' }, text);
-    assert.equal(delivered.blocks.map(block => block.text.text).join(''), text);
+    assert.equal(delivered.blocks.flatMap(block => block.elements).flatMap(item => item.elements).map(item => item.text).join(''), text);
   });
 });
 

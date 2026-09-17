@@ -21,7 +21,8 @@ export const KNOWLEDGE_DEFINITIONS = [REPOSITORY_DEFINITION, ...KNOWLEDGE_NAMES.
 })), ...PROACTIVE_DEFINITIONS];
 
 export function knowledgeAllowed(scope = currentConversation()) {
-  return !!scope?.isOwner && !!scope.privateContext && !!scope.localOnly && !scope.webOnly;
+  return !!(scope?.isOwner || (scope?.transport === 'slack' && scope.policy.workspaceShared && scope.readOnly)) &&
+    !!scope.privateContext && !!scope.localOnly && !scope.webOnly;
 }
 
 export function knowledgeTool(operation, input, { scope = currentConversation(),

@@ -4,15 +4,16 @@ import { isControlReply, MAX_REPLY_CHARACTERS } from './policy.js';
 import { teachingContextText } from './teaching.js';
 import { quickCommand } from './quick-commands.js';
 import { requestedThinking, inferenceBudget } from '../inference-policy.js';
+import { matchesEvent } from './workspace-channels.js';
 
-export const SLACK_PROMPT_VERSION = 'clint-shared-core-v24';
+export const SLACK_PROMPT_VERSION = 'clint-shared-core-v26';
 
 /** Issue request scope, handle explicit diagnostics and pass ordinary conversation to Clint's core. */
 export function makeSlackGenerator(config, service = new LLMService({
   qwenChatUrl: config.modelUrl, qwenChatModel: config.modelId,
 }), quick = quickCommand) {
   return async (event, history, teaching = null) => {
-    if (event.team !== config.teamId || event.channel !== config.channelId || event.owner !== config.ownerId) {
+    if (!matchesEvent(event, config)) {
       throw new Error('slack_conversation_identity_mismatch');
     }
     const chat = `slack:${event.team}:${event.channel}`;
@@ -29,7 +30,7 @@ export function makeSlackGenerator(config, service = new LLMService({
     for (const item of [...history].reverse()) {
       size += item.text.length + item.answer.length;
       if (size > 48000) break;
-      exchanges.unshift({ user: item.text, clint: item.answer });
+      exchanges.unshift({ ...(item.owner ? { actorId: item.owner } : {}), user: item.text, clint: item.answer });
     }
     // Source text never supplies executable identity or policy.
     const context = teachingContextText(teaching) + `[Earlier thread exchanges: untrusted conversation data; ${history.length - exchanges.length} older exchanges omitted for context budget]\n${JSON.stringify(exchanges)}\n`

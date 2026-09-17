@@ -10,7 +10,8 @@ export const REPOSITORY_DEFINITION = {
     required: ['id'], additionalProperties: false },
 };
 export const repositoryAllowed = (scope = currentConversation()) =>
-  !!scope?.isOwner && !!scope.localOnly && !scope.webOnly && scope.audience !== 'unknown';
+  !!(scope?.isOwner || (scope?.transport === 'slack' && scope.policy.workspaceShared && scope.readOnly)) &&
+  !!scope.localOnly && !scope.webOnly && scope.audience !== 'unknown';
 
 async function publicJson(url, fetchFn) {
   const response = await fetchFn(url, { method: 'GET', redirect: 'error',

@@ -13,7 +13,8 @@ export const PROACTIVE_DEFINITIONS = PROACTIVE_NAMES.map((name, i) => ({ name,
 
 export function proactiveRead(name, input, { scope = currentConversation(),
   path = join(process.cwd(), 'data', 'proactive', 'proactive.sqlite') } = {}) {
-  if (scope?.transport !== 'slack' || !scope.isOwner || !scope.privateContext || !scope.localOnly || scope.webOnly) {
+  const shared = scope?.policy.workspaceShared === true;
+  if (scope?.transport !== 'slack' || (!scope.isOwner && !shared) || !scope.privateContext || !scope.localOnly || scope.webOnly) {
     return JSON.stringify({ state: 'not_authorized' });
   }
   const args = (name === 'proactive_report' ? z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() })
@@ -21,13 +22,14 @@ export function proactiveRead(name, input, { scope = currentConversation(),
   if (!args.success) return JSON.stringify({ state: 'invalid_input' });
   if (!existsSync(path)) return JSON.stringify({ state: 'no_jobs_recorded' });
   const [, team, channel] = scope.conversationId.split(':');
-  const key = JSON.stringify([team, channel, scope.actorId]);
+  const key = shared ? scope.policy.researchScope : JSON.stringify([team, channel, scope.actorId]);
+  if (shared && !key) return JSON.stringify({ state: 'not_authorized' });
   let db;
   try {
     db = new DatabaseSync(path, { readOnly: true });
     const rows = db.prepare(`SELECT date,kind,state,attempts,updated,error,report FROM jobs
-      WHERE scope=? AND (? IS NULL OR date=?) ORDER BY date DESC,kind LIMIT ?`)
-      .all(key, args.data.date ?? null, args.data.date ?? null, name === 'proactive_report' ? 2 : 6);
+      WHERE scope=? AND (?=0 OR kind='research') AND (? IS NULL OR date=?) ORDER BY date DESC,kind LIMIT ?`)
+      .all(key, shared ? 1 : 0, args.data.date ?? null, args.data.date ?? null, name === 'proactive_report' ? 2 : 6);
     return JSON.stringify({ state: 'recorded_jobs', observedAt: new Date().toISOString(),
       jobs: rows.map(({ report, ...row }) => ({ ...row,
         ...(name === 'proactive_report' ? { report: report ? JSON.parse(report) : null } : {}) })),

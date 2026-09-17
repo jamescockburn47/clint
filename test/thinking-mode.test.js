@@ -83,7 +83,7 @@ test('overnight research always enables thinking and ignores old 700-token final
 test('long finished answers survive Slack formatting intact without exposing internal reasoning', () => {
   const text = 'Complete answer.'.repeat(2000);
   const payload = replyPayload({ channel: 'CTEST' }, text);
-  assert.equal(payload.blocks.map(block => block.text.text).join(''), text);
+  assert.equal(payload.blocks.flatMap(block => block.elements).flatMap(item => item.elements).map(item => item.text).join(''), text);
   assert.ok(payload.blocks.length <= 50);
   assert.throws(() => replyPayload({}, text + 'x'));
   assert.throws(() => replyPayload({}, '<think>internal</think>Answer'));

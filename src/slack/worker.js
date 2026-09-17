@@ -1,6 +1,7 @@
 import { replyPayload } from './policy.js';
 import { authorizeChannel } from './channel-access.js';
 import { safeErrorCode } from '../error-code.js';
+import { matchesEvent, authorizeActor } from './workspace-channels.js';
 
 /** How long a message may wait for an unavailable core before it is given up and the owner told. */
 export const CORE_WAIT_LIMIT_MS = 6 * 60 * 60 * 1000;
@@ -21,8 +22,10 @@ export function classifySendFailure(err) {
 }
 
 export class SlackWorker {
-  constructor({ store, config, web, generate, teaching = null, report = () => {}, now = Date.now }) {
+  constructor({ store, config, web, generate, teaching = null, report = () => {}, now = Date.now,
+    resolveConfig = null }) {
     Object.assign(this, { store, config, web, generate, teaching, report, now });
+    this.resolveConfig = resolveConfig ?? (() => this.config);
     this.running = null;
     this.stopped = false;
     this.readyPolicies = new Map();
@@ -35,9 +38,9 @@ export class SlackWorker {
   /** Best-effort thread notice so a dropped message is never silent. Never carries source or error text. */
   async notify(event, reason) {
     try {
-      if (event.team !== this.config.teamId || event.channel !== this.config.channelId ||
-          event.owner !== this.config.ownerId ||
-          !await authorizeChannel(this.web, this.config)) {
+      const config = this.resolveConfig(event);
+      if (!matchesEvent(event, config) || !await authorizeActor(this.web, config, event) ||
+          !await authorizeChannel(this.web, config)) {
         this.report('notice_scope_changed'); return;
       }
       await this.web.chat.postMessage({ channel: event.channel, thread_ts: event.thread,
@@ -47,19 +50,19 @@ export class SlackWorker {
   }
   async run() {
     for (let event; !this.stopped && (event = this.store.next());) {
+      const config = this.resolveConfig(event);
       // Persisted work must be re-authorized against the CURRENT deployment policy.
-      if (event.team !== this.config.teamId || event.channel !== this.config.channelId ||
-          event.owner !== this.config.ownerId) {
+      if (!matchesEvent(event, config)) {
         this.readyPolicies.delete(event.id);
         this.store.setState(event.id, 'blocked', 'scope_changed'); continue;
       }
-      if (event.state === 'ready' && this.config.policy?.mode !== 'open' &&
-          this.readyPolicies.get(event.id) !== JSON.stringify(this.config.policy || {})) {
+      if (event.state === 'ready' && (config.policy?.mode !== 'open' || config.workspaceShared) &&
+          this.readyPolicies.get(event.id) !== JSON.stringify(config.policy || {})) {
         this.readyPolicies.delete(event.id);
         this.store.setState(event.id, 'blocked', 'cached_private_context_requires_open_policy'); continue;
       }
       try {
-        if (!await authorizeChannel(this.web, this.config)) {
+        if (!await authorizeChannel(this.web, config) || !await authorizeActor(this.web, config, event)) {
           this.readyPolicies.delete(event.id);
           this.store.setState(event.id, 'blocked', 'channel_not_private_local'); continue;
         }
@@ -75,14 +78,14 @@ export class SlackWorker {
         this.store.generating(event.id);
         try {
           // Legacy inbox rows have no audience provenance. Never replay them under a narrower policy.
-          const history = this.config.policy?.mode === 'open' ? this.store.history(event) : [];
+          const history = config.policy?.mode === 'open' ? this.store.history(event, config.workspaceShared === true) : [];
           answer = this.teaching?.handle(event, history, this.store.contextBarrier?.(event));
           if (answer == null) answer = await this.generate(event,
             this.teaching?.history(event, history) ?? history, this.teaching?.context(event));
           replyPayload(event, answer); // Validate before persisting a sendable result.
           this.teaching?.markResponse(event);
           this.store.ready(event.id, answer);
-          this.readyPolicies.set(event.id, JSON.stringify(this.config.policy || {}));
+          this.readyPolicies.set(event.id, JSON.stringify(config.policy || {}));
         } catch (err) {
           const code = errorCode(err);
           const waiting = this.now() - event.created < CORE_WAIT_LIMIT_MS;
@@ -99,7 +102,7 @@ export class SlackWorker {
       }
       // Recheck sharing immediately before outbound delivery, after potentially slow generation.
       try {
-        if (!await authorizeChannel(this.web, this.config)) {
+        if (!await authorizeChannel(this.web, config) || !await authorizeActor(this.web, config, event)) {
           this.readyPolicies.delete(event.id);
           this.store.setState(event.id, 'blocked', 'channel_changed_before_send'); continue;
         }

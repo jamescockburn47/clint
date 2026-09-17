@@ -35,7 +35,7 @@ test('London schedule uses DST and a durable briefing sends only once', async t 
   await worker.tick(); await worker.tick();
   assert.equal(sent.length, 1);
   assert.equal(sent[0].thread_ts, undefined);
-  assert.equal(sent[0].blocks[0].text.type, 'plain_text');
+  assert.equal(sent[0].blocks[0].type, 'rich_text');
   assert.equal(store.get('2026-09-15:briefing').state, 'sent');
 });
 
