@@ -7,7 +7,7 @@ import { quickCommand } from './quick-commands.js';
 import { requestedThinking, inferenceBudget } from '../inference-policy.js';
 import { matchesEvent } from './workspace-channels.js';
 
-export const SLACK_PROMPT_VERSION = 'clint-shared-core-v30';
+export const SLACK_PROMPT_VERSION = 'clint-shared-core-v31';
 
 /** Issue request scope, handle explicit diagnostics and pass ordinary conversation to Clint's core. */
 export function makeSlackGenerator(config, service = new LLMService({
