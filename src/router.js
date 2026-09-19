@@ -13,11 +13,11 @@ export { CATEGORY };
 
 // --- Static routing tables ---
 
-const AVAILABLE_READ_TOOLS = new Set(['system_status', 'web_search', 'web_fetch', 'knowledge_search', 'knowledge_read', 'knowledge_status', 'repository_status']);
+const AVAILABLE_READ_TOOLS = new Set(['task_list', 'task_read', 'system_status', 'web_search', 'web_fetch', 'knowledge_search', 'knowledge_read', 'knowledge_status', 'repository_status']);
 
 const CATEGORY_TOOLS = {
   [CATEGORY.CALENDAR]: new Set(['calendar_list_events', 'calendar_create_event', 'calendar_update_event', 'calendar_find_free_time']),
-  [CATEGORY.TASK]: new Set(['todo_add', 'todo_list', 'todo_complete', 'todo_remove', 'todo_update']),
+  [CATEGORY.TASK]: new Set(['task_save', 'task_list', 'task_read', 'task_set_status', 'todo_add', 'todo_list', 'todo_complete', 'todo_remove', 'todo_update']),
   [CATEGORY.TRAVEL]: new Set(['train_departures', 'train_fares', 'hotel_search', 'search_trains', 'search_accommodation']),
   [CATEGORY.EMAIL]: new Set(['gmail_search', 'gmail_read', 'gmail_draft', 'gmail_confirm_send']),
   [CATEGORY.RECALL]: new Set([

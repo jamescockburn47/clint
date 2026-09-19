@@ -16,7 +16,7 @@ const policySchema = z.object({
 }).strip();
 
 export function createConversationContext({ transport, conversationId, actorId, ownerId,
-  audience, policy = {}, localOnly = false, forceRestricted = false, webOnly = false, readOnly = false }) {
+  audience, policy = {}, localOnly = false, forceRestricted = false, webOnly = false, readOnly = false, requestId = null, taskStorePath = null, originalRequest = null }) {
   if (!['whatsapp', 'slack', 'internal', 'venue'].includes(transport) ||
       !['group', 'direct', 'unknown'].includes(audience) ||
       typeof conversationId !== 'string' || !conversationId || conversationId.length > 200 ||
@@ -32,7 +32,7 @@ export function createConversationContext({ transport, conversationId, actorId, 
     ((audience === 'direct' && isOwner) || (audience === 'group' && parsed.mode === 'open'));
   const scope = Object.freeze({ transport, conversationId, actorId, isOwner, audience,
     isGroup, policy: Object.freeze(parsed), privateContext, localOnly: !!localOnly,
-    webOnly: !!webOnly, readOnly: !!readOnly });
+    webOnly: !!webOnly, readOnly: !!readOnly, requestId, taskStorePath, originalRequest });
   issued.add(scope);
   return scope;
 }

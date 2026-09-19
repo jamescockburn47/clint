@@ -60,7 +60,7 @@ export function renderStatus(snapshot) {
 /** Whole current-message commands/aliases only; no classifier, history or model call. */
 export async function quickCommand(text, config, { status = systemStatus, getTools = () => [], core = coreConfig } = {}) {
   const scope = currentConversation();
-  if (!scope || scope.transport !== 'slack' || (!scope.isOwner && !scope.policy.workspaceShared) || !scope.localOnly || !scope.readOnly ||
+  if (!scope || scope.transport !== 'slack' || (!scope.isOwner && !scope.policy.workspaceShared) || !scope.localOnly ||
       scope.webOnly || scope.audience !== 'group' || !scope.privateContext || scope.policy.mode !== 'open') return null;
   const match = typeof text === 'string' && /^clint (help|status|about|setup)$/i.exec(text.trim());
   const command = match ? match[1].toLowerCase() : selfDescriptionCommand(text);

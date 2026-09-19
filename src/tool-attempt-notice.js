@@ -12,7 +12,7 @@ const NOTICES = Object.freeze({
 /** Return a terminal notice for an unusable read-only Slack attempt; otherwise leave normal handling unchanged. */
 export function finishToolAttempt(outcome, meta, scope = currentConversation()) {
   if (scope?.transport !== 'slack' || scope.audience !== 'group' || !scope.isOwner ||
-      !scope.localOnly || !scope.readOnly) return null;
+      !scope.localOnly) return null;
   const response = outcome.response;
   const blocks = Array.isArray(response?.content) ? response.content : [];
   let reason = !response ? 'provider_lost' : response.stop_reason === 'tool_use'
@@ -25,7 +25,9 @@ export function finishToolAttempt(outcome, meta, scope = currentConversation()) 
   if (!reason) return null;
   const evidence = scope.privateContext && !scope.webOnly && typeof outcome.archiveEvidence === 'string'
     && outcome.archiveEvidence.length <= 9000 ? outcome.archiveEvidence : '';
-  return { text: NOTICES[reason] + evidence, meta: { ...meta,
+  const partial = !scope.readOnly && outcome.toolRounds > 0
+    ? ' Local actions already recorded remain saved. Ask me to list your tasks to check their state.' : '';
+  return { text: NOTICES[reason] + partial + evidence, meta: { ...meta,
     provider: outcome.provider, modelName: outcome.modelName, providerReason: 'tool_attempt_incomplete',
     incomplete: true, termination: reason, toolRounds: outcome.toolRounds,
     critiqueApplied: false, applicationNotice: true, archiveEvidenceIncluded: !!evidence } };

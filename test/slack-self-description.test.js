@@ -23,7 +23,7 @@ test('self-description explains the agent and dated configuration without enlarg
   assert.match(prompt, /Current observations take precedence/);
   assert.match(CLINT_SETUP.thinking, /97280 rendered input tokens/);
   assert.match(CLINT_SETUP.thinking, /32768-token reasoning-and-answer/);
-  assert.match(CLINT_SETUP.memory, /partitions of the same physical memory/);
+  assert.match(CLINT_SETUP.memory, /share physical memory and are not additive capacity/);
   assert.equal(capabilityLines([]).length, 0);
   assert.deepEqual(capabilityLines(['web_search']), []);
   assert.doesNotMatch(capabilityLines(['repository_status']).join(''), /read the installed source/);
@@ -65,7 +65,7 @@ test('runtime snapshot separates maintained deployment notes from fresh failed o
     resolve: async () => { throw new Error('absent'); }, core: { evoMemoryEnabled: false } }));
   assert.equal(snapshot.model.observedAt, null);
   assert.equal(snapshot.hardware.installedPhysicalBytes, null);
-  assert.equal(snapshot.documentedSetup.documentedAt, '2026-09-17');
+  assert.equal(snapshot.documentedSetup.documentedAt, '2026-09-19');
   assert.match(snapshot.documentedSetup.evidence, /deployment notes/);
   assert.equal(snapshot.capabilities.backgroundResearchAndDiary, 'saved_research_only_private_briefings_excluded');
 });

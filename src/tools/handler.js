@@ -1,4 +1,5 @@
 import { calendarListEvents, calendarCreateEvent, calendarUpdateEvent, calendarFindFreeTime } from './calendar.js';
+import { OWNER_TASK_HANDLERS } from '../tasks/owner-tools.js';
 import { KNOWLEDGE_HANDLERS } from '../knowledge/tools.js';
 import { GOOGLE_READ_HANDLERS } from './google-read.js';
 import { gmailSearch, gmailRead, gmailDraft, gmailConfirmSend } from './gmail.js';
@@ -138,7 +139,7 @@ async function sendFileHandler(input) {
 
 // --- Tool registry (dispatch map) ---
 
-const TOOL_MAP = new Map([ ...KNOWLEDGE_HANDLERS, ...GOOGLE_READ_HANDLERS,
+const TOOL_MAP = new Map([ ...OWNER_TASK_HANDLERS, ...KNOWLEDGE_HANDLERS, ...GOOGLE_READ_HANDLERS,
   ['calendar_list_events', calendarListEvents],
   ['calendar_create_event', calendarCreateEvent],
   ['calendar_update_event', calendarUpdateEvent],

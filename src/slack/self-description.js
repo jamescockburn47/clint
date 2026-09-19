@@ -2,19 +2,20 @@ import { ANSWER_TOKENS, THINKING_TOKENS, FLASH_CONTEXT } from '../inference-poli
 
 /** Operator-maintained deployment notes, not a substitute for a fresh observation. */
 export const CLINT_SETUP = Object.freeze({
-  documentedAt: '2026-09-17',
+  documentedAt: '2026-09-19',
   evidence: 'Operator-verified deployment notes; refresh system_status for the running model and resources.',
   identity: "Clint is James Cockburn's custom personal assistant and technical/research agent, built around a local language model, retrieval and tools. Clawd is the former project name.",
   host: 'Headless GMKtec EVO X2, AMD Ryzen AI Max+ 395 (16 cores/32 threads), Radeon 8060S, 128 GB installed unified memory. Ubuntu 24.04.4 LTS; Windows is the remote control/development machine, using SSH over Tailscale.',
   design: 'Node.js agent and Slack Socket Mode transport supervised by systemd; local llama.cpp inference on the EVO. The agent supplies conversation context, permitted tools and source retrieval around the model. Messages travel through Slack cloud infrastructure; local inference does not make the conversation wholly local. WhatsApp is retired and Slack DMs are not connected.',
   selectedModelProfile: 'Qwen3.8 Flash Next, UD-Q4_K_XL weights with Engram on the GPU through HIP, Q4_K_M MTP speculative drafting (depth 4, minimum draft probability 0.75), q8_0 K/V cache, batch 4096/microbatch 2048, one 131072-token slot. These are documented selected settings, not fresh observations or benchmark claims.',
-  memory: '96 GiB reserved GPU allocation leaves roughly 31 GiB Linux-managed host RAM; these are partitions of the same physical memory, not additional capacity. CPU boost is disabled during Flash service; fan control is automatic. Current availability, temperatures and boost must be observed, not inferred from this note.',
+  memory: '2 GiB is reserved for the GPU; the configured shared GTT pool permits up to 112 GiB from Linux-managed RAM. These share physical memory and are not additive capacity. A 110 GiB allocation trial passed; actual free capacity depends on running workloads. CPU boost is disabled during Flash service; fan control is automatic. Current availability, temperatures and boost must be observed, not inferred from this note.',
   retrieval: 'Read-only snapshots of saved conversations and background knowledge use lexical BM25 plus local embedding/vector retrieval. Qwen3-Embedding-8B Q8_0 runs on CPU, leaving GPU space for Flash. Retrieved records retain sources/speakers; archive coverage and partial embedding coverage require knowledge_status.',
   research: 'A separate idle-time scheduler plans, researches public sources and writes reflection hypotheses overnight; private morning briefings go to James. Public access includes saved research, not private Calendar-derived briefings. Reports are drafts, not autonomous retraining or verified beliefs; check proactive_status/report before claiming completed work.',
   thinking: `Ordinary responses use fast mode with up to ${ANSWER_TOKENS} output tokens. Prefix a request with think: for a ${THINKING_TOKENS}-token reasoning-and-answer budget; overnight research enables thinking automatically. The Flash input guard reserves ${THINKING_TOKENS} tokens plus 1024 margin, leaving at most ${FLASH_CONTEXT - THINKING_TOKENS - 1024} rendered input tokens including instructions, tools and history, not 128K of user text.`,
 });
 
 const CAPABILITIES = [
+  [['task_save', 'task_list', 'task_set_status'], 'Save local tasks, list them after restart and record requested status changes; saving does not execute the task.'],
   [['web_search', 'web_fetch'], 'Research current questions, read public webpages/documents and cite sources.'],
   [['knowledge_search', 'knowledge_read'], 'Search shared background archives and retrieve attributed conversation records.'],
   [['repository_status'], 'Check the registered repository’s published branch and recent commits; this does not inspect unpushed code or prove deployment.'],

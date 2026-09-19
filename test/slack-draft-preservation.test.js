@@ -32,7 +32,7 @@ test('protected owner replies preserve the exact draft and make no direct or sel
 test('negative control and all excluded scopes retain the legacy rewrite, not a vacuous preservation pass', async () => {
   const excluded = [undefined, scope({ transport: 'internal' }), scope({ transport: 'whatsapp' }),
     scope({ audience: 'direct' }), scope({ audience: 'unknown' }), scope({ actorId: 'other' }),
-    scope({ localOnly: false }), scope({ readOnly: false }), scope({ webOnly: true }),
+    scope({ localOnly: false }), scope({ webOnly: true }),
     scope({ policy: { mode: 'project' } })];
   let calls = 0;
   const selected = { defaultModel: 'synthetic', provider: 'qwen',

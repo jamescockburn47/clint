@@ -24,7 +24,7 @@ function preserveOwnerDraft(scope = currentConversation()) {
   // This pass sees only a draft, not the question or tool evidence. It cannot
   // safely rewrite source-based owner replies. Deterministic output filters remain.
   return scope?.transport === 'slack' && scope.audience === 'group' && scope.isOwner
-    && scope.privateContext && scope.localOnly && scope.readOnly && !scope.webOnly;
+    && scope.privateContext && scope.localOnly && !scope.webOnly;
 }
 
 const CRITIQUE_SYSTEM = `You are a ruthless quality gate. You review Clint's draft responses before they're sent to a WhatsApp group of sharp, critical people who will instantly spot AI slop.

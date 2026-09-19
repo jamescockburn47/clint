@@ -1,3 +1,4 @@
+import { TASK_NAMES, SLACK_READS, ownerActionsAllowed } from './owner-actions.js';
 import { currentConversation, permitsProject } from './conversation-context.js';
 import { filterResponse } from './output-filter.js';
 import { KNOWLEDGE_NAMES, knowledgeAllowed } from './knowledge/tools.js';
@@ -20,6 +21,8 @@ const READ_ONLY_TOOLS = new Set([...PUBLIC_READS, 'soul_read']);
 
 /** One execution predicate shared by schema selection, ordinary calls and planner steps. */
 export function permitsTool(name, input, scope = currentConversation(), core = config) {
+  if (TASK_NAMES.has(name)) return ownerActionsAllowed(scope);
+  if (scope?.transport === 'slack' && !SLACK_READS.has(name) && !READ_ONLY_TOOLS.has(name)) return false;
   if (scope?.transport === 'slack' && scope.policy.workspaceShared &&
       (GOOGLE_READ_NAMES.includes(name) || /^(gmail_|calendar_|drive_|google_)/.test(name))) return false;
   // Seeded project definitions have no verified freshness/provenance contract for Slack.

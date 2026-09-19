@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { LLMService } from '../claude.js';
 import { createConversationContext, withConversationContext } from '../conversation-context.js';
 import { isControlReply, MAX_REPLY_CHARACTERS } from './policy.js';
@@ -6,7 +7,7 @@ import { quickCommand } from './quick-commands.js';
 import { requestedThinking, inferenceBudget } from '../inference-policy.js';
 import { matchesEvent } from './workspace-channels.js';
 
-export const SLACK_PROMPT_VERSION = 'clint-shared-core-v27';
+export const SLACK_PROMPT_VERSION = 'clint-shared-core-v30';
 
 /** Issue request scope, handle explicit diagnostics and pass ordinary conversation to Clint's core. */
 export function makeSlackGenerator(config, service = new LLMService({
@@ -19,7 +20,9 @@ export function makeSlackGenerator(config, service = new LLMService({
     const chat = `slack:${event.team}:${event.channel}`;
     const conversation = createConversationContext({ transport: 'slack', conversationId: chat,
       actorId: event.owner, ownerId: config.ownerId, audience: 'group', policy: config.policy || {},
-      localOnly: true, readOnly: true });
+      localOnly: true, readOnly: config.workspaceShared === true || event.owner !== config.ownerId || config.policy?.mode !== 'open',
+      requestId: event.id || null, originalRequest: event.text,
+      taskStorePath: config.dataDir ? join(config.dataDir, 'owner-tasks.sqlite') : null });
     const immediate = await withConversationContext(conversation, () => quick(event.text, config,
       { getTools: () => service._getAvailableTools?.(true, chat) || [] }));
     if (immediate !== null) return immediate;

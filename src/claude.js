@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import config from './config.js';
+import { legacyPlannerAllowed } from './owner-actions.js';
 import { createQwenChatClient } from './qwen-chat.js';
 import { finishToolAttempt } from './tool-attempt-notice.js';
 import { createArchiveAttemptEvidence } from './archive-attempt-evidence.js';
@@ -410,7 +411,7 @@ class LLMService {
       : getToolsForCategory(category, tools);
 
     // Task planner
-    if (!merlinMode && !(currentConversation()?.transport === 'slack' && currentConversation()?.readOnly) && route.needsPlan && (route.confidence || 0) >= PLANNING.MIN_CONFIDENCE) {
+    if (!merlinMode && legacyPlannerAllowed(currentConversation()) && route.needsPlan && (route.confidence || 0) >= PLANNING.MIN_CONFIDENCE) {
       try {
         const { executePlan } = await import('./task-planner.js');
         const planResult = await executePlan(context, route, senderJid, chatJid, memoryFragment);

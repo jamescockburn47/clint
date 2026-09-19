@@ -47,7 +47,7 @@ test('quotes, compound requests and history do not invoke diagnostics', async ()
 test('unissued and every excluded audience return before I/O; adapter identity mismatch rejects', async () => {
   assert.equal(await quickCommand('clint status', cfg, { status: noRead, getTools: noRead }), null);
   for (const s of [scope({ transport: 'internal' }), scope({ actorId: 'other' }), scope({ audience: 'direct' }),
-    scope({ audience: 'unknown' }), scope({ localOnly: false }), scope({ readOnly: false }),
+    scope({ audience: 'unknown' }), scope({ localOnly: false }), 
     scope({ webOnly: true }), scope({ forceRestricted: true }), scope({ policy: { mode: 'project' } })]) {
     assert.equal(await withConversationContext(s, () => quickCommand('clint status', cfg, { status: noRead, getTools: noRead })), null);
   }

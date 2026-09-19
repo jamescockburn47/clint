@@ -25,7 +25,7 @@ const LIMIT = 8500;
 export function createArchiveAttemptEvidence() {
   const scope = currentConversation();
   if (scope?.transport !== 'slack' || scope.audience !== 'group' || !scope.isOwner ||
-      !scope.privateContext || !scope.localOnly || !scope.readOnly || scope.webOnly) return null;
+      !scope.privateContext || !scope.localOnly || scope.webOnly) return null;
   const sections = [], seen = new Set();
   let length = INTRO.length, omitted = false;
   return {

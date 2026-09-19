@@ -27,7 +27,7 @@ const step = { stop_reason: 'tool_use', usage: {}, content: [{ type: 'tool_use',
 test('archive fallback is available only inside the issued private owner read-only Slack scope', () => {
   assert.equal(createArchiveAttemptEvidence(), null);
   for (const extra of [{ actorId: 'other' }, { transport: 'internal' }, { audience: 'direct' },
-    { policy: { mode: 'project' } }, { webOnly: true }, { localOnly: false }, { readOnly: false }]) {
+    { policy: { mode: 'project' } }, { webOnly: true }, { localOnly: false }]) {
     withConversationContext(scope(extra), () => assert.equal(createArchiveAttemptEvidence(), null));
   }
   withConversationContext(scope(), () => assert.ok(createArchiveAttemptEvidence()));

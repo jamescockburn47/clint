@@ -86,11 +86,11 @@ test('normal answers retain critique and outer output filtering; unoffered tools
 });
 
 test('other transports, actors, audiences and write-capable scopes receive no new notice or replay', async () => {
-  for (const scope of [makeScope({ readOnly: false }), makeScope({ localOnly: false }),
+  for (const scope of [makeScope({ localOnly: false }),
     makeScope({ transport: 'internal' }), makeScope({ audience: 'unknown' }), makeScope({ actorId: 'other' })]) {
     assert.equal(finishToolAttempt({ response: null }, {}, scope), null);
   }
-  for (const scope of [makeScope({ readOnly: false }), makeScope({ transport: 'internal' })]) {
+  for (const scope of [makeScope({ transport: 'internal' })]) {
     const out = await harness([step('possible-effect'), null], { scope });
     assert.equal(out.requests.length, 2); assert.equal(out.reads.length, 1);
     assert.deepEqual(out.result, { text: null, meta: null });

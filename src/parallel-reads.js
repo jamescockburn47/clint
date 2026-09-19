@@ -7,7 +7,7 @@ const READS = new Set(['knowledge_status', 'knowledge_search', 'knowledge_read',
 /** Only independent reads already emitted in the same model turn can overlap. */
 export async function orderedToolReads(blocks, execute, scope = currentConversation()) {
   const parallel = scope?.transport === 'slack' && scope.isOwner && scope.privateContext &&
-    scope.localOnly && scope.readOnly && !scope.webOnly && blocks.every(block => READS.has(block.name)) &&
+    scope.localOnly && !scope.webOnly && blocks.every(block => READS.has(block.name)) &&
     blocks.filter(block => block.name === 'knowledge_search').length <= 1 &&
     blocks.filter(block => block.name === 'drive_read').length <= 1;
   const output = new Array(blocks.length);
