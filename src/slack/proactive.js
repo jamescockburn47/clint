@@ -10,6 +10,8 @@ import { filterResponse } from '../output-filter.js';
 import { outboundQuerySafe } from '../outbound-query.js';
 import core from '../config.js';
 import { RESEARCH_TIMEOUT_MS } from '../inference-policy.js';
+import { PAPER_KINDS, nextPaperJob, runPaperJob, paperDirectory, paperSummaries, appendPaperSummaries, papersPending } from './nightly-papers.js';
+import { deliverPapers } from './paper-delivery.js';
 
 export const proactiveScope = config => JSON.stringify([config.teamId, config.channelId, config.ownerId]);
 export function localSchedule(now) {
@@ -23,8 +25,8 @@ export function localSchedule(now) {
 export class ProactiveWorker {
   constructor({ config, web, inbox, interactive, report = () => {}, now = Date.now,
     store = new ProactiveStore(join(config.dataDir, 'data', 'proactive')),
-    authorize = authorizeChannel, chat = backgroundChat, research = researchAndReflect, briefing = morningBrief }) {
-    Object.assign(this, { config, web, inbox, interactive, report, now, store, authorize, chat, research, briefing });
+    authorize = authorizeChannel, chat = backgroundChat, research = researchAndReflect, briefing = morningBrief, papers = runPaperJob }) {
+    Object.assign(this, { config, web, inbox, interactive, report, now, store, authorize, chat, research, briefing, papers });
     this.scopeKey = proactiveScope(config);
     this.lastInput = now(); this.running = null; this.controller = null; this.stopped = false;
     store.recover(now());
@@ -38,11 +40,28 @@ export class ProactiveWorker {
   }
   async run() {
     const { date, minute } = localSchedule(this.now());
-    if (minute < 225 || minute >= 1200) return;
+    if (minute < (this.config.papersEnabled ? 30 : 225) || minute >= 1200) return;
     if (!await this.authorize(this.web, this.config)) return;
     if (this.interactive.running || this.inbox.next() || this.now() - this.lastInput < 15 * 60000) return;
-    const kind = minute < 420 ? 'research' : 'briefing';
+    const papersActive = this.config.papersEnabled && !this.config.workspaceShared &&
+      (!this.config.papersFrom || date >= this.config.papersFrom);
+    const nextPaper = papersActive ? nextPaperJob(this.store, date, minute, this.scopeKey, this.now()) : null;
+    // A retry cooldown is not completion: wait for both exercises before the morning send.
+    if (papersActive && !nextPaper && minute >= 420 && papersPending(this.store, date, this.scopeKey)) return;
+    if (!nextPaper && minute < 225) return;
+    const kind = nextPaper || (minute < 420 ? 'research' : 'briefing');
     const job = this.store.ensure(date, kind, this.scopeKey, this.now());
+    if (kind === 'briefing' && job.state === 'sent' && papersActive) {
+      const scope = createConversationContext({ transport: 'slack',
+        conversationId: `slack:${this.config.teamId}:${this.config.channelId}`,
+        actorId: this.config.ownerId, ownerId: this.config.ownerId, audience: 'group',
+        policy: this.config.policy, localOnly: true, readOnly: true });
+      const attempted = await deliverPapers({ config: this.config, web: this.web, store: this.store, date,
+        scopeKey: this.scopeKey, scope, now: this.now, authorize: this.authorize,
+        signal: AbortSignal.timeout(60000) });
+      if (attempted) this.report(`proactive_paper_delivery_${this.store.get(`${date}:paper_delivery`).state}`);
+      return;
+    }
     if (job.scope !== this.scopeKey || !['pending', 'ready'].includes(job.state) || job.state === 'pending' && job.attempts >= 3 ||
         job.attempts && this.now() - job.updated < 15 * 60000) return;
     this.controller = new AbortController();
@@ -58,6 +77,10 @@ export class ProactiveWorker {
         const chat = this.chat(this.config, signal);
         const args = { date, chat, signal, owner: this.config.ownerId, conversationId };
         result = await withConversationContext(scope, async () => {
+          if (PAPER_KINDS.has(kind)) return this.papers({ ...args, kind,
+            directory: paperDirectory(this.config), statements: this.inbox.recentStatements(this.config, this.now()),
+            outcomes: this.store.recent(this.scopeKey).map(({ report, ...row }) => row),
+            history: this.store.paperHistory(this.scopeKey).filter(row => row.date !== date) });
           if (kind === 'research') return this.research({ ...args,
             statements: this.inbox.recentStatements(this.config, this.now()),
             directory: join(this.config.dataDir, 'data', 'proactive', 'research') });
@@ -66,9 +89,13 @@ export class ProactiveWorker {
             research?.scope === this.scopeKey && research.state === 'complete' ? JSON.parse(research.report) : null });
         });
         signal.throwIfAborted();
+        if (kind === 'briefing' && papersActive) {
+          result.papers = paperSummaries(this.store, date, this.scopeKey);
+          result.text = appendPaperSummaries(result.text, result.papers);
+        }
         if (kind === 'briefing') replyPayload({ channel: this.config.channelId }, result.text);
-        this.store.update(job.id, kind === 'research' ? 'complete' : 'ready', this.now(), { report: result });
-        if (kind === 'research') { this.report('proactive_research_complete'); return; }
+        this.store.update(job.id, kind !== 'briefing' ? 'complete' : 'ready', this.now(), { report: result });
+        if (kind !== 'briefing') { this.report(`proactive_${kind}_complete`); return; }
       }
       signal.throwIfAborted();
       if (!await this.authorize(this.web, this.config)) {

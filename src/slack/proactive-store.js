@@ -37,5 +37,9 @@ export class ProactiveStore {
     return this.db.prepare('SELECT date,kind,state,attempts,updated,error,report,reply_ts FROM jobs WHERE scope=? ORDER BY date DESC,kind LIMIT 6')
       .all(scope).map(({ report, ...row }) => ({ ...row, report: report ? JSON.parse(report) : null }));
   }
+  paperHistory(scope) {
+    return this.db.prepare("SELECT date,kind,state,error,report FROM jobs WHERE scope=? AND kind IN ('paper','self_review') ORDER BY date DESC,kind LIMIT 28")
+      .all(scope).map(({ report, ...row }) => ({ ...row, report: report ? JSON.parse(report) : null }));
+  }
   close() { this.db.close(); }
 }

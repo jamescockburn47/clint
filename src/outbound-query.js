@@ -7,6 +7,16 @@ const CREDENTIAL_PATTERNS = [
 ];
 export function outboundQuerySafe(text, core = {}) {
   if (typeof text !== 'string' || text.length > 16000) return false;
+  return credentialFree(text, core);
+}
+/** Generated private reading copies have a separate bound; query limits remain unchanged. */
+export function outboundArtifactSafe(text, core = {}) {
+  if (typeof text !== 'string' || Buffer.byteLength(text) > 2 * 1024 * 1024) return false;
+  const decoded = text.replace(/&(amp|lt|gt|quot|#39);/g,
+    (_, entity) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" })[entity]);
+  return credentialFree(text, core) && credentialFree(decoded, core);
+}
+function credentialFree(text, core) {
   const variants = [text];
   for (let i = 0; i < 2; i++) {
     const value = variants.at(-1).replace(/(?:%[0-9a-f]{2})+/gi, encoded => {

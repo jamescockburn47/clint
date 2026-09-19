@@ -26,6 +26,8 @@ const schema = z.object({
   }),
   SLACK_MODEL_ID: z.enum(['qwen3.8-27b', 'qwen3.8-flash-next']).default('qwen3.8-27b'),
   SLACK_PROACTIVE_ENABLED: z.enum(['true', 'false']).default('true'),
+  SLACK_PAPERS_ENABLED: z.enum(['true', 'false']).default('false'),
+  SLACK_PAPERS_FROM: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 /** Dedicated configuration boundary: never inherit the legacy bot's credentials. */
@@ -41,6 +43,8 @@ export function loadSlackConfig(input = process.env) {
     publicChannelId: v.SLACK_PUBLIC_CHANNEL_ID,
     modelUrl: v.SLACK_MODEL_URL, modelId: v.SLACK_MODEL_ID,
     proactiveEnabled: v.SLACK_PROACTIVE_ENABLED === 'true',
+    papersEnabled: v.SLACK_PAPERS_ENABLED === 'true',
+    papersFrom: v.SLACK_PAPERS_FROM ?? null,
     policy: Object.freeze({ ...v.SLACK_CHANNEL_POLICY,
       blockedTopics: Object.freeze(v.SLACK_CHANNEL_POLICY.blockedTopics),
       allowedProjects: Object.freeze(v.SLACK_CHANNEL_POLICY.allowedProjects) }) });
