@@ -20,6 +20,25 @@ export async function authorizeActor(web, config, event) {
   if (!config.workspaceShared) return true;
   const result = await web.users.info({ user: event.owner });
   const user = result?.user;
-  return result?.ok === true && user?.id === event.owner && user.team_id === config.teamId &&
-    user.deleted === false && user.is_bot === false && user.is_app_user !== true && user.is_stranger !== true;
+  if (result?.ok !== true || user?.id !== event.owner || user.deleted === true ||
+      user.is_bot !== false || user.is_app_user === true || user.is_stranger === true ||
+      !/^T[A-Z0-9]+$/.test(user.team_id || '')) return false;
+  if (user.team_id === config.teamId) return user.deleted === false;
+  // Slack omits deleted for external user profiles; exact current membership is required below.
+  // External identity alone is insufficient: require membership of this exact channel.
+  // Rechecked by the worker before generation and delivery; never cache this grant.
+  let cursor;
+  const seen = new Set();
+  for (let page = 0; page < 20; page++) {
+    const members = await web.conversations.members({ channel: config.channelId, limit: 200,
+      ...(cursor ? { cursor } : {}) });
+    if (members?.ok !== true || !Array.isArray(members.members) ||
+        !members.members.every(id => typeof id === 'string' && /^[UW][A-Z0-9]+$/.test(id))) return false;
+    if (members.members.includes(event.owner)) return true;
+    cursor = members.response_metadata?.next_cursor;
+    if (!cursor) return false;
+    if (typeof cursor !== 'string' || seen.has(cursor)) return false;
+    seen.add(cursor);
+  }
+  return false;
 }

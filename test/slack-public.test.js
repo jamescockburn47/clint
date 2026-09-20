@@ -20,7 +20,7 @@ const base = { teamId: 'TTEAM12345', appId: 'AAPP12345', ownerId: 'UOWNER123', b
   channelId: 'CPRIVATE12', publicChannelId: 'CPUBLIC123', policy: { mode: 'open' } };
 const [privateConfig, shared] = channelConfigs(base);
 const event = { id: 'EvTEST1234', team: base.teamId, channel: shared.channelId, owner: 'UMEMBER12',
-  ts: '1789633206.000001', thread: '1789633206.000001', text: 'Hello' };
+  ts: '1789633206.000001', thread: '1789633206.000001', text: 'Clint, hello' };
 const channel = { id: shared.channelId, is_private: false, is_member: true, is_archived: false,
   is_shared: false, is_ext_shared: false, is_org_shared: false };
 const user = { id: event.owner, team_id: base.teamId, deleted: false, is_bot: false, is_app_user: false };
@@ -34,13 +34,15 @@ test('workspace public event admission does not widen private channel or accept 
   assert.ok(acceptMention(body, shared, base.botUserId));
   assert.equal(acceptMention(body, privateConfig, base.botUserId), null);
   for (const change of [{ user: base.botUserId }, { bot_id: 'B123' }, { subtype: 'message_changed' },
-    { channel: 'COTHER123' }, { team: 'TFOREIGN1' }]) {
+    { channel: 'COTHER123' }]) {
     assert.equal(acceptMention({ ...body, event: { ...body.event, ...change } }, shared, base.botUserId), null);
   }
-  assert.equal(acceptMention({ ...body, is_ext_shared_channel: true }, shared, base.botUserId), null);
+  assert.ok(acceptMention({ ...body, is_ext_shared_channel: true,
+    event: { ...body.event, team: 'TFOREIGN1' } }, shared, base.botUserId));
   assert.equal(matchesEvent({ ...event, channel: privateConfig.channelId }, privateConfig), false);
   for (const change of [{}, { deleted: true }, { is_bot: true }, { is_stranger: true }, { team_id: 'TOTHER123' }]) {
-    const allowed = await authorizeActor({ users: { info: async () => ({ ok: true, user: { ...user, ...change } }) } }, shared, event);
+    const allowed = await authorizeActor({ users: { info: async () => ({ ok: true, user: { ...user, ...change } }) },
+      conversations: { members: async () => ({ ok: true, members: [] }) } }, shared, event);
     assert.equal(allowed, Object.keys(change).length === 0);
   }
   assert.equal(await authorizeActor({ users: { info: async () => ({ ok: false }) } }, shared, event), false);
@@ -48,8 +50,7 @@ test('workspace public event admission does not widen private channel or accept 
 
 test('public channel must remain exact, joined and local; private open channel still requires only owner and bot', async () => {
   assert.equal(allowedChannel({ ok: true, channel }, shared), true);
-  for (const change of [{ is_shared: true }, { is_ext_shared: true }, { is_org_shared: true },
-    { is_archived: true }, { is_member: false }, { is_private: true }]) {
+  for (const change of [{ is_archived: true }, { is_member: false }, { is_private: true }]) {
     assert.equal(allowedChannel({ ok: true, channel: { ...channel, ...change } }, shared), false);
   }
   const web = { conversations: { info: async () => ({ ok: true, channel }), members: async () => { throw new Error('not needed'); } } };
@@ -77,6 +78,7 @@ test('Google integrations are absent and denied before I/O for every public acto
     assert.equal(permitsTool('web_search', { query: 'public research' }), true);
     assert.equal(permitsTool('group_mode', {}), false);
     assert.equal(permitsTool('soul_confirm', {}), false);
+    assert.equal(permitsTool('task_save', {}), false);
     const result = JSON.parse(knowledgeTool('record', { id: 'source' }, { query: () => ({ records: ['shared archive'] }) }));
     assert.deepEqual(result.records, ['shared archive']);
   });
@@ -124,8 +126,9 @@ test('membership revocation between generation and delivery prevents sending', a
   try {
     store.enqueue(event, 1);
     const web = { conversations: { info: async () => ({ ok: true, channel }) },
-      users: { info: async () => ({ ok: true, user: { ...user, deleted: ++checks > 1 } }) },
+      users: { info: async () => ({ ok: true, user: { ...user, team_id: 'TEXTERNAL' } }) },
       chat: { postMessage: async () => { sent++; return { ok: true }; } } };
+    web.conversations.members = async () => ({ ok: true, members: ++checks === 1 ? [event.owner] : [] });
     const worker = new SlackWorker({ store, config: base, web, resolveConfig: () => shared, generate: async () => 'Shared answer' });
     await worker.drain(); assert.equal(sent, 0);
     assert.equal(store.db.prepare('select state from events').get().state, 'blocked');

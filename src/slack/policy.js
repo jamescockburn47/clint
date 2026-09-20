@@ -2,19 +2,19 @@ import { formatReply } from './format-reply.js';
 const stamp = /^\d{10}\.\d{6}$/;
 export const MAX_REPLY_CHARACTERS = 32000;
 
-/** Owner messages in the configured private channel; other venues never enter the inbox. */
+/** Validate transport identity/shape; public attention is applied before inbox admission. */
 export function acceptMention(body, cfg, botUserId) {
   const event = body?.event;
   const addressed = event?.type === 'app_mention' && typeof event.text === 'string' && event.text.includes(`<@${botUserId}>`);
   const privateMessage = event?.type === 'message' && event.channel_type === 'group' && !cfg.workspaceShared;
   const publicMessage = event?.type === 'message' && event.channel_type === 'channel' && cfg.workspaceShared === true;
   if (body?.type !== 'event_callback' || body.team_id !== cfg.teamId ||
-      body.api_app_id !== cfg.appId || body.is_ext_shared_channel === true ||
+      body.api_app_id !== cfg.appId || (!cfg.workspaceShared && body.is_ext_shared_channel === true) ||
       !/^Ev[A-Z0-9]+$/.test(body.event_id || '') || !event ||
       (!addressed && !privateMessage && !publicMessage) || event.subtype || event.bot_id || event.bot_profile ||
       typeof event.user !== 'string' || !/^[UW][A-Z0-9]+$/.test(event.user) ||
       (!cfg.workspaceShared && event.user !== cfg.ownerId) || event.user === botUserId ||
-      event.channel !== cfg.channelId || event.team && event.team !== cfg.teamId ||
+      event.channel !== cfg.channelId || (!cfg.workspaceShared && event.team && event.team !== cfg.teamId) ||
       !stamp.test(event.ts || '') || event.thread_ts && !stamp.test(event.thread_ts) ||
       typeof event.text !== 'string' || !event.text.trim() || event.text.length > 12000) return null;
   return { id: body.event_id, team: body.team_id, channel: event.channel,
@@ -25,8 +25,8 @@ export function allowedChannel(info, cfg) {
   const channel = info?.channel;
   return info?.ok === true && channel?.id === cfg.channelId &&
     channel.is_private === (cfg.workspaceShared ? false : true) && channel.is_member === true &&
-    channel.is_archived === false && channel.is_shared === false &&
-    channel.is_ext_shared === false && channel.is_org_shared === false;
+    channel.is_archived === false && channel.is_frozen !== true && channel.is_mpim !== true && (cfg.workspaceShared === true ||
+      (channel.is_shared === false && channel.is_ext_shared === false && channel.is_org_shared === false));
 }
 
 /** Render formatting as typed elements; generated mention strings stay literal. */
