@@ -27,6 +27,7 @@ import { orderedToolReads } from './parallel-reads.js';
 import { currentConversation, isGroupConversation } from './conversation-context.js';
 import { OWNER_ONLY_TOOLS } from './conversation-tools.js';
 import { scopedResponse } from './conversation-response.js';
+import { requestMessages } from './request-messages.js';
 
 export { getUsageStats, flushUsage };
 
@@ -496,7 +497,7 @@ class LLMService {
       const userContent = [];
       if (imageData) { userContent.push(imageData); logger.info('image sent to Claude vision'); }
       userContent.push({ type: 'text', text: context });
-      const messages = [{ role: 'user', content: userContent }];
+      const messages = requestMessages(userContent, options.conversationEvidence);
 
       const toolLoopResult = await this._toolLoop(activeClient, activeModel, breaker, system, messages, cachedTools, isGroup, mode, senderJid, chatJid, requestId, category, options.inference);
 

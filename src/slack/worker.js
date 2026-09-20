@@ -23,9 +23,10 @@ export function classifySendFailure(err) {
 
 export class SlackWorker {
   constructor({ store, config, web, generate, teaching = null, report = () => {}, now = Date.now,
-    resolveConfig = null }) {
+    resolveConfig = null, readHistory = null }) {
     Object.assign(this, { store, config, web, generate, teaching, report, now });
     this.resolveConfig = resolveConfig ?? (() => this.config);
+    this.readHistory = readHistory;
     this.running = null;
     this.stopped = false;
     this.readyPolicies = new Map();
@@ -81,7 +82,8 @@ export class SlackWorker {
           const history = config.policy?.mode === 'open' ? this.store.history(event, config.workspaceShared === true) : [];
           answer = this.teaching?.handle(event, history, this.store.contextBarrier?.(event));
           if (answer == null) answer = await this.generate(event,
-            this.teaching?.history(event, history) ?? history, this.teaching?.context(event));
+            this.teaching?.history(event, history) ?? history, this.teaching?.context(event),
+            this.readHistory ? await this.readHistory(config, event) : null);
           replyPayload(event, answer); // Validate before persisting a sendable result.
           this.teaching?.markResponse(event);
           this.store.ready(event.id, answer);

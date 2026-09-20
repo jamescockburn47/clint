@@ -34,8 +34,8 @@ test('quotes, compound requests and history do not invoke diagnostics', async ()
     assert.equal(await withConversationContext(scope(), () => quickCommand(text, cfg, { status: noRead, getTools: noRead })), null);
   }
   let calls = 0;
-  const generate = makeSlackGenerator(cfg, { getResponse: async context => {
-    calls++; assert.match(context, /Earlier thread exchanges/); assert.match(context, /Current message/);
+  const generate = makeSlackGenerator(cfg, { getResponse: async (context, _mode, _sender, _image, _chat, options) => {
+    calls++; assert.match(options.conversationEvidence, /Old snapshot/); assert.equal(context, 'Please compare these options.');
     return { text: 'Ordinary model answer.' };
   } });
   assert.equal(await generate(event('Please compare these options.'), [{ text: 'clint status', answer: 'Old snapshot' }]), 'Ordinary model answer.');

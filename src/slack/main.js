@@ -12,6 +12,7 @@ import { checkEvoHealth } from '../memory.js';
 import { ProactiveWorker } from './proactive.js';
 import { channelConfigs, authorizeActor } from './workspace-channels.js';
 import { checkStartupChannels, PublicChannelHealth } from './channel-health.js';
+import { readSlackHistory } from './history.js';
 
 // Status words plus an optional short error code. Never source text, tokens or SDK bodies.
 const report = (status, detail) => console.log(JSON.stringify(
@@ -39,6 +40,7 @@ async function main() {
   const store = new SlackStore(config.dataDir);
   store.recover();
   const worker = new SlackWorker({ store, config, web, resolveConfig,
+    readHistory: (channel, event) => readSlackHistory(web, channel, event),
     generate: (event, ...args) => generators.get(event.channel)(event, ...args), report });
   const proactive = new ProactiveWorker({ config, web, inbox: store, interactive: worker, report });
   const socket = new SocketModeClient({ appToken: config.appToken, logger: sdkLogger,

@@ -184,7 +184,7 @@ test('adapter calls shared core with authenticated audience, local inference and
     assert.equal(chat, `slack:${cfg.teamId}:${cfg.channelId}`);
     assert.equal(options.conversation.localOnly, true); assert.equal(options.conversation.readOnly, true);
     assert.equal(options.conversation.policy.mode, 'colleague');
-    assert.match(context, /Earlier/); assert.match(context, /Current question/);
+    assert.match(options.conversationEvidence, /Earlier/); assert.equal(context, 'Current question');
     return { text: 'Grounded reply' };
   } });
   const event = { team: cfg.teamId, channel: cfg.channelId, owner: cfg.ownerId, text: 'Current question' };
