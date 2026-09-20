@@ -64,7 +64,7 @@ export class SlackWorker {
       try {
         if (!await authorizeChannel(this.web, config) || !await authorizeActor(this.web, config, event)) {
           this.readyPolicies.delete(event.id);
-          this.store.setState(event.id, 'blocked', 'channel_not_private_local'); continue;
+          this.store.setState(event.id, 'blocked', 'channel_access_denied'); this.report('channel_access_denied'); continue;
         }
       } catch (err) {
         this.report('channel_check_failed', errorCode(err)); return;
@@ -104,7 +104,7 @@ export class SlackWorker {
       try {
         if (!await authorizeChannel(this.web, config) || !await authorizeActor(this.web, config, event)) {
           this.readyPolicies.delete(event.id);
-          this.store.setState(event.id, 'blocked', 'channel_changed_before_send'); continue;
+          this.store.setState(event.id, 'blocked', 'channel_changed_before_send'); this.report('channel_changed_before_send'); continue;
         }
       } catch (err) { this.report('channel_check_failed', errorCode(err)); return; }
       this.store.setState(event.id, 'sending');

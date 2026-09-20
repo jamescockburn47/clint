@@ -11,6 +11,7 @@ import { validateSlackCoreConfig } from './core-config.js';
 import { checkEvoHealth } from '../memory.js';
 import { ProactiveWorker } from './proactive.js';
 import { channelConfigs, authorizeActor } from './workspace-channels.js';
+import { checkStartupChannels, PublicChannelHealth } from './channel-health.js';
 
 // Status words plus an optional short error code. Never source text, tokens or SDK bodies.
 const report = (status, detail) => console.log(JSON.stringify(
@@ -31,7 +32,8 @@ async function main() {
       auth.user_id === config.ownerId) throw new Error('slack_wrong_installation');
   config = Object.freeze({ ...config, botUserId: auth.user_id });
   const channels = channelConfigs(config);
-  for (const channel of channels) if (!await authorizeChannel(web, channel)) throw new Error('slack_channel_not_ready');
+  await checkStartupChannels(web, channels, report);
+  const publicHealth = new PublicChannelHealth({ web, channels, report });
   const resolveConfig = event => channels.find(channel => channel.channelId === event.channel);
   const generators = new Map(channels.map(channel => [channel.channelId, makeSlackGenerator(channel)]));
   const store = new SlackStore(config.dataDir);
@@ -48,7 +50,12 @@ async function main() {
       if (stopping) return;
       const channel = channels.find(candidate => candidate.channelId === body?.event?.channel);
       let event = channel ? acceptMention(body, channel, auth.user_id) : null;
-      if (event && !await authorizeActor(web, channel, event)) event = null;
+      if (event && !await authorizeActor(web, channel, event)) {
+        report(channel.workspaceShared ? 'public_actor_denied' : 'private_actor_denied'); event = null;
+      }
+      if (event && channel.workspaceShared && !await authorizeChannel(web, channel)) {
+        report('public_channel_denied'); event = null; void publicHealth.check();
+      }
       const outcome = event ? store.enqueue(event, Date.now()) : 'rejected';
       // Durable persistence precedes ACK. Unauthorized events are discarded without storing text.
       await ack();
@@ -61,6 +68,7 @@ async function main() {
   const timer = setInterval(() => void drain(), 15000);
   const healthTimer = setInterval(() => void checkEvoHealth({ recover: false }), 60000);
   const proactiveTimer = setInterval(() => void proactive.tick(), 60000);
+  const publicHealthTimer = setInterval(() => void publicHealth.check(), 60000);
   const inboxTimer = setInterval(() => {
     const stuck = store.counts().filter(row => ['failed', 'uncertain', 'blocked'].includes(row.state));
     if (stuck.length) report('inbox_needs_attention', stuck.map(row => `${row.state}=${row.count}`).join(','));
@@ -71,6 +79,7 @@ async function main() {
     clearInterval(timer);
     clearInterval(healthTimer);
     clearInterval(proactiveTimer);
+    clearInterval(publicHealthTimer);
     clearInterval(inboxTimer);
     try { await socket.disconnect(); await proactive.stop(); await worker.stop(); store.close(); }
     catch (err) { report('shutdown_failed', errorCode(err)); code = 1; }
@@ -80,6 +89,7 @@ async function main() {
   process.once('SIGINT', () => void shutdown(0));
   await socket.start();
   report(`ready:${SLACK_PROMPT_VERSION}`);
+  void publicHealth.check();
   void drain();
 }
 // A stray rejection must stop the process cleanly rather than leave a half-sent row behind.
