@@ -41,8 +41,8 @@ test('only owner mentions for the exact app/team/channel enter the inbox', () =>
   }
 });
 
-test('owner private-channel messages need no mention; wrong audiences and bot loops fail closed', t => {
-  const plain = body(); Object.assign(plain.event, { type: 'message', channel_type: 'group', text: 'hello' });
+test('owner private-channel messages accept a plain name; wrong audiences and bot loops fail closed', t => {
+  const plain = body(); Object.assign(plain.event, { type: 'message', channel_type: 'group', text: 'hello Clint' });
   const accepted = acceptMention(plain, cfg, bot); assert.ok(accepted);
   for (const patch of [{ channel_type: 'im' }, { channel_type: 'channel' }, { channel_type: undefined },
     { user: 'U99999999' }, { user: bot }, { bot_id: 'B1' }, { subtype: 'message_changed' },

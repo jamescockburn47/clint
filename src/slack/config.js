@@ -37,7 +37,7 @@ export function loadSlackConfig(input = process.env) {
     result.error.issues.map(issue => issue.path.join('.')).join(',')}`);
   const v = result.data;
   if (v.SLACK_PUBLIC_CHANNEL_ID === v.SLACK_CHANNEL_ID) throw new Error('slack_channels_must_differ');
-  return Object.freeze({ appToken: v.SLACK_APP_TOKEN, botToken: v.SLACK_BOT_TOKEN,
+  return Object.freeze({ requireExplicitMention: true, appToken: v.SLACK_APP_TOKEN, botToken: v.SLACK_BOT_TOKEN,
     appId: v.SLACK_APP_ID, teamId: v.SLACK_TEAM_ID, channelId: v.SLACK_CHANNEL_ID,
     ownerId: v.SLACK_OWNER_ID, dataDir: v.SLACK_DATA_DIR,
     publicChannelId: v.SLACK_PUBLIC_CHANNEL_ID,

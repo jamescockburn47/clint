@@ -1,4 +1,4 @@
-import { replyPayload } from './policy.js';
+import { replyPayload, namesClint } from './policy.js';
 import { authorizeChannel } from './channel-access.js';
 import { safeErrorCode } from '../error-code.js';
 import { matchesEvent, authorizeActor } from './workspace-channels.js';
@@ -53,6 +53,10 @@ export class SlackWorker {
     for (let event; !this.stopped && (event = this.store.next());) {
       const config = this.resolveConfig(event);
       // Persisted work must be re-authorized against the CURRENT deployment policy.
+      if (config?.requireExplicitMention && !namesClint(event.text, config.botUserId)) {
+        this.readyPolicies.delete(event.id);
+        this.store.setState(event.id, 'blocked', 'explicit_name_required'); continue;
+      }
       if (!matchesEvent(event, config)) {
         this.readyPolicies.delete(event.id);
         this.store.setState(event.id, 'blocked', 'scope_changed'); continue;

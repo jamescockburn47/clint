@@ -30,7 +30,7 @@ const scopeFor = (actor = event.owner) => createConversationContext({ transport:
 
 test('workspace public event admission does not widen private channel or accept foreign/bot messages', async () => {
   const body = { type: 'event_callback', team_id: base.teamId, api_app_id: base.appId, event_id: event.id,
-    event: { type: 'message', channel_type: 'channel', channel: shared.channelId, user: event.owner, ts: event.ts, text: 'Hello' } };
+    event: { type: 'message', channel_type: 'channel', channel: shared.channelId, user: event.owner, ts: event.ts, text: 'Hello Clint' } };
   assert.ok(acceptMention(body, shared, base.botUserId));
   assert.equal(acceptMention(body, privateConfig, base.botUserId), null);
   for (const change of [{ user: base.botUserId }, { bot_id: 'B123' }, { subtype: 'message_changed' },

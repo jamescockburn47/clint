@@ -2,6 +2,12 @@ import { formatReply } from './format-reply.js';
 const stamp = /^\d{10}\.\d{6}$/;
 export const MAX_REPLY_CHARACTERS = 32000;
 
+/** Explicit standalone name or the actual bot's Slack mention; same rule in every channel/thread. */
+export function namesClint(text, botUserId) {
+  return typeof text === 'string' && ((typeof botUserId === 'string' && text.includes(`<@${botUserId}>`)) ||
+    /(?<![\p{L}\p{N}_])@?clint(?![\p{L}\p{N}_])/iu.test(text));
+}
+
 /** Validate transport identity/shape; public attention is applied before inbox admission. */
 export function acceptMention(body, cfg, botUserId) {
   const event = body?.event;
@@ -16,7 +22,8 @@ export function acceptMention(body, cfg, botUserId) {
       (!cfg.workspaceShared && event.user !== cfg.ownerId) || event.user === botUserId ||
       event.channel !== cfg.channelId || (!cfg.workspaceShared && event.team && event.team !== cfg.teamId) ||
       !stamp.test(event.ts || '') || event.thread_ts && !stamp.test(event.thread_ts) ||
-      typeof event.text !== 'string' || !event.text.trim() || event.text.length > 12000) return null;
+      typeof event.text !== 'string' || !event.text.trim() || event.text.length > 12000 ||
+      !namesClint(event.text, botUserId)) return null;
   return { id: body.event_id, team: body.team_id, channel: event.channel,
     owner: event.user, ts: event.ts, thread: event.thread_ts || event.ts, text: event.text };
 }
