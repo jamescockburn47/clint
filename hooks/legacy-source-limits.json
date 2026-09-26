@@ -1,6 +1,6 @@
 {
   "src/claude.js": 730,
-  "src/config.js": 374,
+  "src/config.js": 376,
   "src/cortex.js": 358,
   "src/evo-llm.js": 620,
   "src/group-members.js": 322,
@@ -24,8 +24,8 @@
   "src/tasks/lqc-monitor.js": 498,
   "src/tasks/overnight-research.ts": 347,
   "src/tasks/trace-analyser.js": 517,
-  "src/tools/definitions.js": 1405,
-  "src/tools/handler.js": 448,
+  "src/tools/definitions.js": 1406,
+  "src/tools/handler.js": 449,
   "src/tools/lqcouncil.js": 1451,
   "src/tools/moorstead.js": 321,
   "src/tools/projects.js": 326,

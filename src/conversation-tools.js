@@ -1,4 +1,5 @@
 import { TASK_NAMES, SLACK_READS, ownerActionsAllowed } from './owner-actions.js';
+import { SPIRE_NAMES, spireAllowed, isSpireTurn } from './spire-policy.js';
 import { currentConversation, permitsProject } from './conversation-context.js';
 import { filterResponse } from './output-filter.js';
 import { KNOWLEDGE_NAMES, knowledgeAllowed } from './knowledge/tools.js';
@@ -21,6 +22,8 @@ const READ_ONLY_TOOLS = new Set([...PUBLIC_READS, 'soul_read']);
 
 /** One execution predicate shared by schema selection, ordinary calls and planner steps. */
 export function permitsTool(name, input, scope = currentConversation(), core = config) {
+  if (isSpireTurn(scope) && !SPIRE_NAMES.has(name)) return false;
+  if (SPIRE_NAMES.has(name)) return spireAllowed(name, input, scope, core.clintSpire);
   if (TASK_NAMES.has(name)) return ownerActionsAllowed(scope);
   if (scope?.transport === 'slack' && !SLACK_READS.has(name) && !READ_ONLY_TOOLS.has(name)) return false;
   if (scope?.transport === 'slack' && scope.policy.workspaceShared &&

@@ -1,8 +1,9 @@
 import { OWNER_TASK_DEFINITIONS } from '../tasks/owner-tools.js';
+import { SPIRE_DEFINITIONS } from './spire-tools.js';
 import { KNOWLEDGE_DEFINITIONS } from '../knowledge/tools.js';
 import { GOOGLE_READ_DEFINITIONS } from './google-definitions.js';
 import { WEB_DEFINITIONS } from './web-definitions.js';
-export const TOOL_DEFINITIONS = [ ...OWNER_TASK_DEFINITIONS, ...KNOWLEDGE_DEFINITIONS, ...GOOGLE_READ_DEFINITIONS,
+export const TOOL_DEFINITIONS = [ ...SPIRE_DEFINITIONS, ...OWNER_TASK_DEFINITIONS, ...KNOWLEDGE_DEFINITIONS, ...GOOGLE_READ_DEFINITIONS,
   {
     name: 'spire_presence',
     description: "Who is inside THE SPIRE right now — the Legal Quants' 3D venue at spire.lquorum.blog (floors: lobby, chambers, council, auditorium, garden, arcade, library, oracle). Returns live people and agents by floor from the venue itself. Use for 'anyone in the spire', 'who's in the venue', 'is anyone online in the spire'. The Spire is NOT one of the steads games — Moorstead/Saltstead/Marsstead questions use steads_status instead.",

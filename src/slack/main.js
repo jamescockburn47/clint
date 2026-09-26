@@ -36,7 +36,8 @@ async function main() {
   await checkStartupChannels(web, channels, report);
   const publicHealth = new PublicChannelHealth({ web, channels, report });
   const resolveConfig = event => channels.find(channel => channel.channelId === event.channel);
-  const generators = new Map(channels.map(channel => [channel.channelId, makeSlackGenerator(channel)]));
+  const generators = new Map(channels.map(channel => [channel.channelId, makeSlackGenerator(channel, undefined, undefined,
+    event => !channel.workspaceShared && event.owner === channel.ownerId && authorizeChannel(web, channel))]));
   const store = new SlackStore(config.dataDir);
   store.recover();
   const worker = new SlackWorker({ store, config, web, resolveConfig,
