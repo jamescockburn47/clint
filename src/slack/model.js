@@ -7,12 +7,12 @@ import { quickCommand } from './quick-commands.js';
 import { requestedThinking, inferenceBudget } from '../inference-policy.js';
 import { matchesEvent } from './workspace-channels.js';
 
-export const SLACK_PROMPT_VERSION = 'clint-shared-core-v36';
+export const SLACK_PROMPT_VERSION = 'clint-shared-core-v37-spire';
 
 /** Issue request scope, handle explicit diagnostics and pass ordinary conversation to Clint's core. */
 export function makeSlackGenerator(config, service = new LLMService({
   qwenChatUrl: config.modelUrl, qwenChatModel: config.modelId,
-}), quick = quickCommand) {
+}), quick = quickCommand, reauthorize = null) {
   return async (event, history, teaching = null, slackHistory = null) => {
     if (!matchesEvent(event, config)) {
       throw new Error('slack_conversation_identity_mismatch');
@@ -22,6 +22,7 @@ export function makeSlackGenerator(config, service = new LLMService({
       actorId: event.owner, ownerId: config.ownerId, audience: 'group', policy: config.policy || {},
       localOnly: true, readOnly: config.workspaceShared === true || event.owner !== config.ownerId || config.policy?.mode !== 'open',
       requestId: event.id || null, originalRequest: event.text,
+      spireReauthorize: reauthorize ? () => reauthorize(event) : null,
       taskStorePath: config.dataDir ? join(config.dataDir, 'owner-tasks.sqlite') : null });
     const immediate = await withConversationContext(conversation, () => quick(event.text, config,
       { getTools: () => service._getAvailableTools?.(true, chat) || [] }));

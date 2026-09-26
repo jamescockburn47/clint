@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { loadSpireConfig } from './spire-config.js';
 
 // --- Schema ---
 // Validates all config on startup. Fast-fail on bad/missing env vars.
@@ -245,6 +246,7 @@ const env = parsed.data;
 
 // --- Exported config object (same shape as before — zero breaking changes) ---
 const config = {
+  clintSpire: loadSpireConfig(process.env),
   anthropicApiKey: env.ANTHROPIC_API_KEY,
   claudeModel: env.CLAUDE_MODEL,
 
