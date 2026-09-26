@@ -232,7 +232,8 @@ export { RouterService };
 export function getToolsForCategory(category, allTools) {
   const allowed = CATEGORY_TOOLS[category];
   if (allowed === null) return allTools;
-  return allTools.filter(t => allowed.has(t.name) || AVAILABLE_READ_TOOLS.has(t.name));
+  return allTools.filter(t => allowed.has(t.name) || AVAILABLE_READ_TOOLS.has(t.name) ||
+    ['spire_status', 'spire_look', 'spire_contribute'].includes(t.name));
 }
 export function needsMemories(category) { return MEMORY_CATEGORIES.has(category); }
 export function mustUseClaude(category) { return CLAUDE_CATEGORIES.has(category); }
