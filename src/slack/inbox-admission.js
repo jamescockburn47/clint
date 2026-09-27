@@ -8,8 +8,7 @@ import { admitLane, LANE_LIMITS } from './peer-lane.js';
  * Durable persistence precedes the caller's ACK. Refused events are discarded without storing text.
  * The private and public path is the v36 sequence unchanged; only a configured lane channel reaches admitLane.
  */
-export async function admitEvent({ body, channels, botUserId, web, store, now, report, onPublicDenied = () => {} }) {
-  const channel = channels.find(candidate => candidate.channelId === body?.event?.channel);
+async function decide({ body, channel, botUserId, web, store, now, report, onPublicDenied }) {
   if (channel?.peerLane === true) {
     const lane = await admitLane({ body, channel, botUserId, web, store, now });
     if (!lane.event) return { outcome: 'lane_rejected', detail: lane.reason, queued: false };
@@ -27,4 +26,18 @@ export async function admitEvent({ body, channels, botUserId, web, store, now, r
   }
   const outcome = event ? store.enqueue(event, now) : 'rejected';
   return { outcome, detail: undefined, queued: outcome === 'queued' };
+}
+
+/** The decision, then a record of a refusal. The record is made after the decision and cannot change it. */
+export async function admitEvent({ body, channels, botUserId, web, store, now, report, onPublicDenied = () => {}, log = null }) {
+  const channel = channels.find(candidate => candidate.channelId === body?.event?.channel);
+  const denials = [];
+  const result = await decide({ body, channel, botUserId, web, store, now, onPublicDenied,
+    report: (...args) => { denials.push(args[0]); report(...args); } });
+  if (!result.queued && log) {
+    // The log catches its own failures. This is for a log that does not: the decision stands whatever it does.
+    try { log.refused({ body, channel, botUserId, outcome: result.outcome, denials, now }); }
+    catch { try { report('admission_log_failed'); } catch { /* The journal itself failed; there is nowhere left to say so. */ } }
+  }
+  return result;
 }

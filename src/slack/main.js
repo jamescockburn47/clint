@@ -3,6 +3,7 @@ import { WebClient } from '@slack/web-api';
 import { loadSlackConfig } from './config.js';
 import { admitEvent } from './inbox-admission.js';
 import { SlackStore } from './store.js';
+import { AdmissionLog } from './admission-log.js';
 import { SlackWorker, errorCode } from './worker.js';
 import { makeSlackGenerator, SLACK_PROMPT_VERSION } from './model.js';
 import coreConfig from '../config.js';
@@ -38,6 +39,7 @@ async function main() {
   const generators = new Map(channels.map(channel => [channel.channelId, makeSlackGenerator(channel)]));
   const store = new SlackStore(config.dataDir);
   store.recover();
+  const log = AdmissionLog.open(store.db, { report, ownerId: config.ownerId, appId: config.appId });
   const worker = new SlackWorker({ store, config, web, resolveConfig,
     readHistory: (channel, event) => readSlackHistory(web, channel, event),
     generate: (event, ...args) => generators.get(event.channel)(event, ...args), report });
@@ -50,7 +52,7 @@ async function main() {
     try {
       if (stopping) return;
       const admitted = await admitEvent({ body, channels, botUserId: auth.user_id, web, store, now: Date.now(),
-        report, onPublicDenied: () => void publicHealth.check() });
+        report, log, onPublicDenied: () => void publicHealth.check() });
       // Durable persistence precedes ACK. Unauthorized events are discarded without storing text.
       await ack();
       report(admitted.outcome, admitted.detail);

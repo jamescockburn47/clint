@@ -33,14 +33,15 @@ const realFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = realFetch; });
 
 const GOOGLE = ['google_read_status', 'calendar_list_calendars', 'calendar_read_events', 'calendar_free_time', 'drive_search', 'drive_read'];
-const EVERYWHERE = [...GOOGLE, 'proactive_status', 'proactive_report', 'steads_status', 'moorstead_status', 'spire_health',
+const EVERYWHERE = [...GOOGLE, 'admission_log', 'proactive_status', 'proactive_report', 'steads_status', 'moorstead_status', 'spire_health',
   'web_search', 'web_fetch', 'knowledge_search', 'knowledge_read', 'knowledge_status', 'repository_status', 'system_status',
   'task_list', 'task_read'];
 // Still offered by category only, as before: tools that write, and recall of memory and of the soul file.
 const BY_CATEGORY = ['task_save', 'task_set_status', 'memory_search', 'soul_read'];
 
-test('release is v40 and free time is a Google read with the permission of the others', () => {
-  assert.equal(SLACK_PROMPT_VERSION, 'clint-shared-core-v40');
+test('release is v40 or later and free time is a Google read with the permission of the others', () => {
+  assert.match(SLACK_PROMPT_VERSION, /^clint-shared-core-v\d+$/);
+  assert.ok(Number(SLACK_PROMPT_VERSION.split('-v')[1]) >= 40);
   assert.equal(permitsTool('calendar_free_time', undefined, owner, core), true);
   assert.equal(permitsTool('calendar_free_time', { date: '2026-10-06' }, owner, core), true);
   for (const [where, conversation] of [['public member', scope(shared, 'UMEMBER123')], ['owner in public', scope(shared, base.ownerId)],
@@ -79,7 +80,7 @@ test('known-bad: a permitted read is offered whatever category the request was g
   }
   // How many are offered, as the release document states it.
   assert.deepEqual(Object.fromEntries(Object.values(CATEGORY).map(category => [category, offered(owner, category).length])),
-    { calendar: 20, task: 22, travel: 20, email: 20, recall: 21, planning: 24, conversational: 20, general_knowledge: 20, system: 21 });
+    { calendar: 21, task: 23, travel: 21, email: 21, recall: 22, planning: 25, conversational: 21, general_knowledge: 21, system: 22 });
   // Offering follows permission, so the public channel and the lane gain no Google read, games read or task tool.
   const member = scope(shared, 'UMEMBER123'), peer = scope(lane, base.ownerId, { webOnly: true, forceRestricted: true });
   for (const category of Object.values(CATEGORY)) {

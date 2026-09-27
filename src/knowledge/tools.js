@@ -5,6 +5,7 @@ import { REPOSITORY_DEFINITION, repositoryStatus } from './repository.js';
 import { hybridSearch, denseWorker } from './hybrid.js';
 import { existsSync } from 'node:fs';
 import { PROACTIVE_DEFINITIONS, PROACTIVE_HANDLERS } from '../slack/proactive-tools.js';
+import { ADMISSION_DEFINITIONS, ADMISSION_HANDLERS } from '../slack/admission-tools.js';
 
 export const KNOWLEDGE_NAMES = ['knowledge_status', 'knowledge_search', 'knowledge_read'];
 export const KNOWLEDGE_DEFINITIONS = [REPOSITORY_DEFINITION, ...KNOWLEDGE_NAMES.map((name, index) => ({ name,
@@ -18,7 +19,7 @@ export const KNOWLEDGE_DEFINITIONS = [REPOSITORY_DEFINITION, ...KNOWLEDGE_NAMES.
     ...(index === 2 ? { part: { type: 'integer', minimum: 0 },
       record_version: { type: 'string', description: 'Copy from page.nextRead when continuing a long source record.' } } : {}),
   } : {}, required: index ? [index === 1 ? 'query' : 'id'] : [], additionalProperties: false },
-})), ...PROACTIVE_DEFINITIONS];
+})), ...PROACTIVE_DEFINITIONS, ...ADMISSION_DEFINITIONS];
 
 export function knowledgeAllowed(scope = currentConversation()) {
   return !!(scope?.isOwner || (scope?.transport === 'slack' && scope.policy.workspaceShared && scope.readOnly)) &&
@@ -35,7 +36,7 @@ export function knowledgeTool(operation, input, { scope = currentConversation(),
 
 export const KNOWLEDGE_HANDLERS = [['repository_status', async input => JSON.stringify(await repositoryStatus(input))],
   ...KNOWLEDGE_NAMES.map((name, index) => [name, input => index === 1
-    ? searchKnowledgeTool(input) : index === 0 ? knowledgeStatusTool(input) : knowledgeTool('record', input)]), ...PROACTIVE_HANDLERS];
+    ? searchKnowledgeTool(input) : index === 0 ? knowledgeStatusTool(input) : knowledgeTool('record', input)]), ...PROACTIVE_HANDLERS, ...ADMISSION_HANDLERS];
 
 export async function searchKnowledgeTool(input, { scope = currentConversation(),
   path = join(process.cwd(), 'data', 'knowledge', 'knowledge.sqlite'), search = hybridSearch } = {}) {

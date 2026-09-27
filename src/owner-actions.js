@@ -6,10 +6,14 @@ export const SLACK_READS = new Set(['web_search', 'web_fetch', 'knowledge_search
   // Games status: GET requests to services on this host. Nothing here mints, revokes, broadcasts or kicks.
   'steads_status', 'moorstead_status', 'spire_health',
   // Free time computed from Calendar events read in full. Permission is that of the other Google reads.
-  'calendar_free_time']);
+  'calendar_free_time',
+  // Why a message got no answer: times and fixed reasons from Clint's own inbox, no message text.
+  'admission_log']);
 
 /** Status of the owner's games. For the owner, in his private channel, and nowhere else. */
 export const GAMES_READS = new Set(['steads_status', 'moorstead_status', 'spire_health']);
+/** Every read that is for the owner in his private channel and nowhere else. */
+export const PRIVATE_READS = new Set([...GAMES_READS, 'admission_log']);
 export const gamesReadsAllowed = scope => !scope || scope.transport !== 'slack' ||
   (scope.audience === 'group' && !!scope.localOnly && !!scope.isOwner && !!scope.privateContext && !scope.webOnly &&
     !scope.readOnly && !scope.policy.workspaceShared && scope.policy.mode === 'open');
