@@ -17,7 +17,8 @@ export function acceptMention(body, cfg, botUserId) {
   if (body?.type !== 'event_callback' || body.team_id !== cfg.teamId ||
       body.api_app_id !== cfg.appId || (!cfg.workspaceShared && body.is_ext_shared_channel === true) ||
       !/^Ev[A-Z0-9]+$/.test(body.event_id || '') || !event ||
-      (!addressed && !privateMessage && !publicMessage) || event.subtype || event.bot_id || event.bot_profile ||
+      (!addressed && !privateMessage && !publicMessage) || event.subtype ||
+      'bot_id' in event || 'bot_profile' in event || 'app_id' in event ||
       typeof event.user !== 'string' || !/^[UW][A-Z0-9]+$/.test(event.user) ||
       (!cfg.workspaceShared && event.user !== cfg.ownerId) || event.user === botUserId ||
       event.channel !== cfg.channelId || (!cfg.workspaceShared && event.team && event.team !== cfg.teamId) ||
@@ -32,7 +33,7 @@ export function allowedChannel(info, cfg) {
   const channel = info?.channel;
   return info?.ok === true && channel?.id === cfg.channelId &&
     channel.is_private === (cfg.workspaceShared ? false : true) && channel.is_member === true &&
-    channel.is_archived === false && channel.is_frozen !== true && channel.is_mpim !== true && (cfg.workspaceShared === true ||
+    channel.is_archived === false && channel.is_frozen !== true && channel.is_mpim !== true && ((cfg.workspaceShared === true && cfg.peerLane !== true) ||
       (channel.is_shared === false && channel.is_ext_shared === false && channel.is_org_shared === false));
 }
 

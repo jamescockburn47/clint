@@ -4,12 +4,15 @@
 // strings; nothing throws. Deployed to clawd-admin: src/tools/steads.js.
 import { randomBytes } from 'crypto';
 import { setMuted, isMuted } from '../steads/state.js';
+import { count } from './figures.js';
 
 const LEDGERS = {
   moorstead: 'http://127.0.0.1:8095',
   saltstead: 'http://127.0.0.1:8097',
   marsstead: 'http://127.0.0.1:8098',
 };
+// Havenstead's figures come from the Steads reporter's intake, not from a game ledger.
+const HAVENSTEAD = 'http://127.0.0.1:8104';
 const PENDING = new Map(); // confirm_id -> { game, code, expiresAt }
 const EXPIRY_MS = 10 * 60 * 1000;
 
@@ -24,25 +27,32 @@ const post = (url, body) => api(url, {
 });
 
 export async function steadsStatus() {
-  const [moor, salt, mars] = await Promise.all([
+  const [haven, moor, salt, mars] = await Promise.all([
+    api(HAVENSTEAD + '/api/visits'),
     api(LEDGERS.moorstead + '/api/overview'),
     api(LEDGERS.saltstead + '/api/visits'),
     api(LEDGERS.marsstead + '/api/summary'),
   ]);
-  const lines = ['*The Steads — status*'];
-  if (moor) {
-    const st = moor.stats || {}, live = (moor.live || []).length;
-    lines.push(`Moorstead: ${live} on now, ${st.today ?? 0} active today, ${st.total ?? 0} ever`);
-  } else lines.push('Moorstead: ledger down');
-  if (salt) {
-    const s = (salt.visits || {}).saltstead || {};
-    lines.push(`Saltstead: ${(s.today || {}).uniques ?? 0} visited today, ${(s.ever || {}).players ?? 0} players ever`);
-  } else lines.push('Saltstead: ledger down');
-  if (mars) {
-    const m = mars.muster || {}, live = ((mars.live || {}).real || []).length;
-    const td = (m.today || {}).real || {}, v = mars.vesper || {};
-    lines.push(`Marsstead: ${live} on now, ${td.uniques ?? 0} real visitors today; VESPER ${v.up ? 'up' : 'DOWN'}`);
-  } else lines.push('Marsstead: ledger down');
+  const lines = ['*The Steads — status*',
+    `As of ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC. Figures are external browsers, not people: `
+      + 'owner devices and known bots are excluded unless a line says otherwise. "Today" is the UTC day.'];
+  // A ledger that answers without a figure has not reported zero. Every figure is checked before it is printed.
+  const line = (game, source, down, figures, text) => lines.push(!source ? `${game}: ${down}`
+    : figures.some(value => value === null) ? `${game}: figures unavailable` : `${game}: ${text(...figures)}`);
+  const havenToday = haven?.visits?.havenstead?.today?.real;
+  line('Havenstead', haven, 'intake down', [count(havenToday?.uniques), count(havenToday?.playUniques)],
+    (visited, played) => `${visited} visited today, ${played} started play`);
+  const moorReal = moor?.stats?.real, sessions = Array.isArray(moor?.live) ? moor.live.length : null;
+  line('Moorstead', moor, 'ledger down', [count(moorReal?.today), count(moorReal?.playedToday), count(moorReal?.total), sessions],
+    (visited, played, ever, live) => `${visited} visited today, ${played} played, ${ever} external browsers ever; `
+      + `${live} live sessions now, counting every device including the owner's`);
+  const saltToday = salt?.visits?.saltstead?.today?.real, saltEver = salt?.visits?.saltstead?.ever?.real;
+  line('Saltstead', salt, 'ledger down', [count(saltToday?.uniques), count(saltToday?.playUniques), count(saltEver?.players)],
+    (visited, played, ever) => `${visited} visited today, ${played} started play, ${ever} external players ever`);
+  const marsToday = mars?.muster?.today?.real, marsLive = Array.isArray(mars?.live?.real) ? mars.live.real.length : null;
+  const vesper = typeof mars?.vesper?.up === 'boolean' ? (mars.vesper.up ? 'up' : 'DOWN') : 'state unknown';
+  line('Marsstead', mars, 'ledger down', [count(marsToday?.uniques), marsLive],
+    (visited, live) => `${live} on now, ${visited} visited today; VESPER ${vesper}`);
   if (isMuted()) lines.push('(Clint notifications are muted)');
   return lines.join('\n');
 }

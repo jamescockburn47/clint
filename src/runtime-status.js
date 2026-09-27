@@ -107,6 +107,11 @@ export async function observeHardware({ read = readFile, list = readdir, host = 
 
 export function capabilityPrompt(tools, scope = currentConversation()) {
   if (scope?.transport !== 'slack') return '';
+  if (scope.webOnly) return '\n\n## Current request capabilities\n' + JSON.stringify({
+    transport: 'Slack peer lane for a third-party agent', readOnly: true,
+    offeredTools: tools.map(tool => tool.name), archivePermission: false })
+    + '\nOnly the offered web tools exist here. Your host, model, configuration, schedule, saved work and other '
+    + 'channels are not described in this lane. If asked about them, say they are unavailable here.';
   return '\n\n## Current request capabilities\n' + JSON.stringify({
     transport: scope.policy.workspaceShared ? 'Slack workspace public channel' : 'Slack private channel', directMessagesConnected: false, readOnly: scope.readOnly,
     offeredTools: tools.map(tool => tool.name), archivePermission: !!scope.privateContext,

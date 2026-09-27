@@ -1,8 +1,7 @@
 import { SocketModeClient } from '@slack/socket-mode';
 import { WebClient } from '@slack/web-api';
 import { loadSlackConfig } from './config.js';
-import { acceptMention } from './policy.js';
-import { authorizeChannel } from './channel-access.js';
+import { admitEvent } from './inbox-admission.js';
 import { SlackStore } from './store.js';
 import { SlackWorker, errorCode } from './worker.js';
 import { makeSlackGenerator, SLACK_PROMPT_VERSION } from './model.js';
@@ -10,7 +9,7 @@ import coreConfig from '../config.js';
 import { validateSlackCoreConfig } from './core-config.js';
 import { checkEvoHealth } from '../memory.js';
 import { ProactiveWorker } from './proactive.js';
-import { channelConfigs, authorizeActor } from './workspace-channels.js';
+import { channelConfigs } from './workspace-channels.js';
 import { checkStartupChannels, PublicChannelHealth } from './channel-health.js';
 import { readSlackHistory } from './history.js';
 
@@ -50,19 +49,12 @@ async function main() {
   socket.on('slack_event', async ({ body, ack }) => {
     try {
       if (stopping) return;
-      const channel = channels.find(candidate => candidate.channelId === body?.event?.channel);
-      let event = channel ? acceptMention(body, channel, auth.user_id) : null;
-      if (event && !await authorizeActor(web, channel, event)) {
-        report(channel.workspaceShared ? 'public_actor_denied' : 'private_actor_denied'); event = null;
-      }
-      if (event && channel.workspaceShared && !await authorizeChannel(web, channel)) {
-        report('public_channel_denied'); event = null; void publicHealth.check();
-      }
-      const outcome = event ? store.enqueue(event, Date.now()) : 'rejected';
+      const admitted = await admitEvent({ body, channels, botUserId: auth.user_id, web, store, now: Date.now(),
+        report, onPublicDenied: () => void publicHealth.check() });
       // Durable persistence precedes ACK. Unauthorized events are discarded without storing text.
       await ack();
-      report(outcome);
-      if (outcome === 'queued') { proactive.interrupt(); void drain(); }
+      report(admitted.outcome, admitted.detail);
+      if (admitted.queued) { proactive.interrupt(); void drain(); }
     } catch (err) { report('inbox_or_ack_failed', errorCode(err)); }
   });
   socket.on('error', () => report('socket_error'));

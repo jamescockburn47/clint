@@ -328,7 +328,7 @@ class LLMService {
     trackTokens(response);
 
     let loopCount = 0;
-    while (response.stop_reason === 'tool_use' && loopCount < MAX_TOOL_LOOPS) {
+    while (response.stop_reason === 'tool_use' && loopCount < Math.min(MAX_TOOL_LOOPS, inference.maxToolRounds ?? MAX_TOOL_LOOPS)) {
       const toolUseBlocks = Array.isArray(response.content) ? response.content.filter(b => b?.type === 'tool_use') : [];
       if (toolUseBlocks.length === 0) break;
       loopCount++;

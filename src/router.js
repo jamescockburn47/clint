@@ -13,7 +13,8 @@ export { CATEGORY };
 
 // --- Static routing tables ---
 
-const AVAILABLE_READ_TOOLS = new Set(['task_list', 'task_read', 'system_status', 'web_search', 'web_fetch', 'knowledge_search', 'knowledge_read', 'knowledge_status', 'repository_status']);
+const AVAILABLE_READ_TOOLS = new Set(['task_list', 'task_read', 'system_status', 'web_search', 'web_fetch', 'knowledge_search', 'knowledge_read', 'knowledge_status', 'repository_status',
+  'steads_status', 'moorstead_status', 'spire_health']);
 
 const CATEGORY_TOOLS = {
   [CATEGORY.CALENDAR]: new Set(['calendar_list_events', 'calendar_create_event', 'calendar_update_event', 'calendar_find_free_time']),

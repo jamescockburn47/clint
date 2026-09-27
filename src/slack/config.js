@@ -8,6 +8,7 @@ const schema = z.object({
   SLACK_APP_ID: id('A'), SLACK_TEAM_ID: id('T'),
   SLACK_CHANNEL_ID: id('[CG]'), SLACK_OWNER_ID: id('[UW]'),
   SLACK_PUBLIC_CHANNEL_ID: id('C').optional(),
+  SLACK_PEER_CHANNEL_ID: id('C').optional(), SLACK_PEER_APP_ID: id('A').optional(),
   SLACK_DATA_DIR: z.string().refine(isAbsolute),
   SLACK_CHANNEL_POLICY: z.string().default('{"mode":"colleague"}').transform((value, ctx) => {
     try { return JSON.parse(value); }
@@ -37,10 +38,16 @@ export function loadSlackConfig(input = process.env) {
     result.error.issues.map(issue => issue.path.join('.')).join(',')}`);
   const v = result.data;
   if (v.SLACK_PUBLIC_CHANNEL_ID === v.SLACK_CHANNEL_ID) throw new Error('slack_channels_must_differ');
+  // The peer lane is all-or-nothing: a third channel and a foreign app.
+  const lane = [v.SLACK_PEER_CHANNEL_ID, v.SLACK_PEER_APP_ID];
+  if (lane.some(Boolean) !== lane.every(Boolean) || (lane.every(Boolean) &&
+      ([v.SLACK_CHANNEL_ID, v.SLACK_PUBLIC_CHANNEL_ID].includes(v.SLACK_PEER_CHANNEL_ID) ||
+        v.SLACK_PEER_APP_ID === v.SLACK_APP_ID))) throw new Error('slack_peer_lane_invalid');
   return Object.freeze({ requireExplicitMention: true, appToken: v.SLACK_APP_TOKEN, botToken: v.SLACK_BOT_TOKEN,
     appId: v.SLACK_APP_ID, teamId: v.SLACK_TEAM_ID, channelId: v.SLACK_CHANNEL_ID,
     ownerId: v.SLACK_OWNER_ID, dataDir: v.SLACK_DATA_DIR,
     publicChannelId: v.SLACK_PUBLIC_CHANNEL_ID,
+    peerChannelId: v.SLACK_PEER_CHANNEL_ID, peerAppId: v.SLACK_PEER_APP_ID,
     modelUrl: v.SLACK_MODEL_URL, modelId: v.SLACK_MODEL_ID,
     proactiveEnabled: v.SLACK_PROACTIVE_ENABLED === 'true',
     papersEnabled: v.SLACK_PAPERS_ENABLED === 'true',

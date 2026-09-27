@@ -68,7 +68,7 @@ OUTPUT RULES:
  * @returns {boolean}
  */
 export function shouldCritique(category, text, useClaudeClient) {
-  if (preserveOwnerDraft()) return false;
+  if (preserveOwnerDraft() || currentConversation()?.policy?.peerLane === true) return false;
   return (
     (category === 'planning' || category === 'legal'
       || (category === 'email' && text.length > 400))
@@ -88,7 +88,7 @@ export function shouldCritique(category, text, useClaudeClient) {
  * @returns {Promise<string>} - Refined or original text
  */
 export async function runCritique(text, category, trackTokensFn, reviewClient) {
-  if (preserveOwnerDraft()) return text;
+  if (preserveOwnerDraft() || currentConversation()?.policy?.peerLane === true) return text;
   const selected = reviewClient || (currentConversation()?.localOnly ? null : critiqueClient);
   if (!selected) {
     logger.info('self-critique: skipped (no LLM provider configured)');

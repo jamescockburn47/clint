@@ -6,8 +6,9 @@ export async function checkStartupChannels(web, channels, report) {
     if (!channel.workspaceShared) {
       if (!await authorizeChannel(web, channel)) throw new Error('slack_private_channel_not_ready');
     } else {
-      try { report(await authorizeChannel(web, channel) ? 'public_channel_ready' : 'public_channel_blocked'); }
-      catch { report('public_channel_unavailable'); }
+      const label = channel.peerLane === true ? 'lane' : 'public';
+      try { report(await authorizeChannel(web, channel) ? `${label}_channel_ready` : `${label}_channel_blocked`); }
+      catch { report(`${label}_channel_unavailable`); }
     }
   }
 }
@@ -24,7 +25,7 @@ export class PublicChannelHealth {
     return this.running;
   }
   async inspect() {
-    const publicConfig = this.channels.find(channel => channel.workspaceShared);
+    const publicConfig = this.channels.find(channel => channel.workspaceShared && channel.peerLane !== true);
     if (!publicConfig) return;
     let status;
     try { status = await authorizeChannel(this.web, publicConfig) ? 'ready' : 'blocked'; }

@@ -7,6 +7,7 @@ const issued = new WeakSet();
 const policySchema = z.object({
   mode: z.enum(['open', 'project', 'colleague']).default('colleague'),
   workspaceShared: z.boolean().optional(),
+  peerLane: z.boolean().optional(),
   researchScope: z.string().max(200).optional(),
   label: z.string().optional(),
   blockedTopics: z.array(z.string().min(1).max(200)).default([]),

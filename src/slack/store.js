@@ -31,8 +31,10 @@ export class SlackStore {
       event.ts, event.thread, event.text, now);
     return 'queued';
   }
-  next() {
-    return this.db.prepare("SELECT * FROM events WHERE state IN ('queued','ready') ORDER BY ts LIMIT 1").get();
+  /** Oldest first, except that the deferred (lane) channel waits for every other channel. */
+  next(deferredChannel = null) {
+    return this.db.prepare("SELECT * FROM events WHERE state IN ('queued','ready') ORDER BY (channel IS ?), ts LIMIT 1")
+      .get(deferredChannel);
   }
   /** Thread replies recall their thread; a top-level message recalls the channel's recent exchanges. */
   history(event, allActors = false) {
@@ -60,6 +62,27 @@ export class SlackStore {
   }
   sent(id, replyTs) {
     this.db.prepare("UPDATE events SET state='sent',reply_ts=? WHERE id=?").run(replyTs, id);
+  }
+  /** Accepted lane events by thread, hour and day. */
+  laneUsage(event, now) {
+    const count = (clause, value) => this.db.prepare(
+      `SELECT count(*) AS n FROM events WHERE team=? AND channel=? AND ${clause}`).get(event.team, event.channel, value).n;
+    return { thread: count('thread=?', event.thread), hour: count('created>=?', now - 3600000),
+      day: count('created>=?', now - 86400000) };
+  }
+  /** Quota decision and insert in one transaction: concurrent admissions cannot exceed a limit. */
+  enqueueLane(event, now, limits) {
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const used = this.laneUsage(event, now);
+      const duplicate = this.db.prepare('SELECT id FROM events WHERE id=? OR (team=? AND channel=? AND ts=?)')
+        .get(event.id, event.team, event.channel, event.ts);
+      const outcome = duplicate ? 'duplicate' : used.thread >= limits.thread ? 'lane_thread_limit'
+        : used.hour >= limits.hour ? 'lane_hour_limit' : used.day >= limits.day ? 'lane_day_limit'
+          : this.enqueue(event, now);
+      this.db.exec('COMMIT');
+      return outcome;
+    } catch (err) { this.db.exec('ROLLBACK'); throw err; }
   }
   counts() {
     return this.db.prepare('SELECT state,count(*) AS count FROM events GROUP BY state').all();

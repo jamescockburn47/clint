@@ -17,7 +17,7 @@ import { liveBriefing } from './briefing.js';
 import { groupDecisions } from './group-decisions.js';
 import { overnightStatus } from './overnight-status.js';
 import * as lqcTools from './lqcouncil.js';
-import { moorsteadStatus, moorsteadBroadcast, moorsteadKick, moorsteadBairnsStatus, moorsteadBairnsSet, moorsteadOps, moorsteadOpsConfirm } from './moorstead.js';
+import { moorsteadStatus, moorsteadBroadcast, moorsteadKick, moorsteadBairnsStatus, moorsteadBairnsSet, moorsteadOps, moorsteadOpsConfirm } from './moorstead-presence.js';
 import { moorsteadCodeStage, moorsteadCodeConfirm } from './moorstead-code.js';
 import { steadsStatus, steadsMint, steadsRevoke, steadsRevokeConfirm, steadsMute } from './steads.js';
 import { spirePresence, spireFeedback, spireHealth } from './spire.js';

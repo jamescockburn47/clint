@@ -38,8 +38,10 @@ export async function spireFeedback(input) {
 export async function spireHealth() {
   const out = [];
   try {
-    const v = await (await fetch(`${BASE()}/version.json`, { signal: AbortSignal.timeout(8000) })).json();
-    out.push(`venue up (v${v.version})`);
+    const r = await fetch(`${BASE()}/version.json`, { signal: AbortSignal.timeout(8000) });
+    const version = r.ok ? (await r.json())?.version : null;
+    out.push(!r.ok ? `venue HTTP ${Number(r.status) || 'error'}`
+      : /^\d{1,4}(\.\d{1,6}){0,3}$/.test(version) ? `venue up (v${version})` : 'venue answered without a version, so its state is unknown');
   } catch { out.push('venue NOT answering'); }
   try {
     const s = await fetch('https://srv1468396.hstgr.cloud/', { signal: AbortSignal.timeout(8000) });

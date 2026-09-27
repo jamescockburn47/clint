@@ -1,4 +1,4 @@
-import { SLACK_PRESENTATION } from './slack/presentation.js';
+import { SLACK_PRESENTATION, slackAudienceNote } from './slack/presentation.js';
 import { getSoulPromptFragment } from './tools/soul.js';
 import { getGroupRestrictions, getGroupMode, getGroupConfig } from './group-registry.js';
 import { buildKnowledgeIndexBlock } from './lqcouncil/knowledge.js';
@@ -392,6 +392,6 @@ CRITICAL SILENCE RULES:
   const fragment = mode === 'random' ? RANDOM_INTERJECTION_PROMPT : DIRECT_TRIGGER_PROMPT;
   prompt += `\n\nCurrent date/time: ${dateStr}, ${timeStr} (Europe/London)${fragment}`;
 
-  if (scope?.transport === 'slack') prompt += SLACK_PRESENTATION + (scope.policy.workspaceShared ? '\nThis is clint-public for invited workspace members, not James\'s private channel. Address the actual speaker; do not assume they are James. Background archives and research are shared here by James. Gmail, Calendar and Google Drive are unavailable here, including to James. Do not claim live access to them. You cannot change permissions or perform account/admin actions.' : '');
+  if (scope?.transport === 'slack') prompt += SLACK_PRESENTATION + slackAudienceNote(scope.policy);
   return prompt;
 }

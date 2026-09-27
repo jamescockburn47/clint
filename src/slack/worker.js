@@ -2,6 +2,7 @@ import { replyPayload, namesClint } from './policy.js';
 import { authorizeChannel } from './channel-access.js';
 import { safeErrorCode } from '../error-code.js';
 import { matchesEvent, authorizeActor } from './workspace-channels.js';
+import { laneQuiet } from './peer-lane.js';
 
 /** How long a message may wait for an unavailable core before it is given up and the owner told. */
 export const CORE_WAIT_LIMIT_MS = 6 * 60 * 60 * 1000;
@@ -10,7 +11,7 @@ const NOTICE_PREFIX = 'Clint could not answer this message';
 /** Short, source-free error code for journal lines. */
 export function errorCode(err) {
   const known = new Set(['slack_core_unavailable', 'slack_incomplete_core_output',
-    'slack_invalid_core_output', 'slack_invalid_reply', 'slack_send_unconfirmed']);
+    'slack_invalid_core_output', 'slack_invalid_reply', 'slack_send_unconfirmed', 'slack_lane_budget_reserved']);
   return known.has(err?.message) ? err.message : safeErrorCode(err);
 }
 
@@ -50,7 +51,7 @@ export class SlackWorker {
     } catch (err) { this.report('notice_failed', errorCode(err)); }
   }
   async run() {
-    for (let event; !this.stopped && (event = this.store.next());) {
+    for (let event; !this.stopped && (event = this.store.next(this.config?.peerChannelId ?? null));) {
       const config = this.resolveConfig(event);
       // Persisted work must be re-authorized against the CURRENT deployment policy.
       if (config?.requireExplicitMention && !namesClint(event.text, config.botUserId)) {
@@ -60,6 +61,10 @@ export class SlackWorker {
       if (!matchesEvent(event, config)) {
         this.readyPolicies.delete(event.id);
         this.store.setState(event.id, 'blocked', 'scope_changed'); continue;
+      }
+      if (config.peerLane === true && event.state === 'queued' && (event.attempts >= 1 || laneQuiet(this.now()))) {
+        this.store.setState(event.id, 'failed', event.attempts >= 1 ? 'lane_single_attempt' : 'lane_quiet_hours');
+        this.report('lane_row_closed'); continue;
       }
       if (event.state === 'ready' && (config.policy?.mode !== 'open' || config.workspaceShared) &&
           this.readyPolicies.get(event.id) !== JSON.stringify(config.policy || {})) {
@@ -72,7 +77,9 @@ export class SlackWorker {
           this.store.setState(event.id, 'blocked', 'channel_access_denied'); this.report('channel_access_denied'); continue;
         }
       } catch (err) {
-        this.report('channel_check_failed', errorCode(err)); return;
+        this.report('channel_check_failed', errorCode(err));
+        if (config.peerLane !== true) return;
+        this.store.setState(event.id, 'failed', 'channel_check_failed'); continue;
       }
       let answer = event.answer;
       if (event.state === 'ready' && this.teaching?.shouldRegenerate(event)) {
@@ -95,14 +102,15 @@ export class SlackWorker {
         } catch (err) {
           const code = errorCode(err);
           const waiting = this.now() - event.created < CORE_WAIT_LIMIT_MS;
-          if (code === 'slack_core_unavailable' && waiting) {
+          if (code === 'slack_core_unavailable' && waiting && config.peerLane !== true) {
             // Transient: give the attempt back and retry on the next drain.
             this.store.requeue(event.id, code); this.report('core_unavailable'); return;
           }
-          const terminal = event.attempts >= 2 || code === 'slack_core_unavailable';
+          const terminal = config.peerLane === true || event.attempts >= 2 || code === 'slack_core_unavailable';
           this.store.setState(event.id, terminal ? 'failed' : 'queued', code);
           this.report('generation_failed', code);
-          if (terminal) await this.notify(event, waiting ? 'no valid reply after three attempts' : 'the local model stayed unavailable');
+          if (terminal) await this.notify(event, config.peerLane === true ? 'the peer lane allows one attempt'
+            : waiting ? 'no valid reply after three attempts' : 'the local model stayed unavailable');
           return;
         }
       }
@@ -112,7 +120,11 @@ export class SlackWorker {
           this.readyPolicies.delete(event.id);
           this.store.setState(event.id, 'blocked', 'channel_changed_before_send'); this.report('channel_changed_before_send'); continue;
         }
-      } catch (err) { this.report('channel_check_failed', errorCode(err)); return; }
+      } catch (err) {
+        this.report('channel_check_failed', errorCode(err));
+        if (config.peerLane !== true) return;
+        this.store.setState(event.id, 'failed', 'channel_check_failed'); continue;
+      }
       this.store.setState(event.id, 'sending');
       try {
         const result = await this.web.chat.postMessage(replyPayload(event, answer));

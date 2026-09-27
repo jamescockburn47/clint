@@ -27,7 +27,7 @@ export const TOOL_DEFINITIONS = [ ...OWNER_TASK_DEFINITIONS, ...KNOWLEDGE_DEFINI
   },
   {
     name: 'steads_status',
-    description: "Status across all three of James's OWN games (Moorstead, Saltstead, Marsstead): who is online now, today's real visitor/player counts, and whether VESPER (Marsstead's AI) is up. Use for 'how are the steads', 'anyone playing', 'steads status'. Owner-only.",
+    description: "Status across all four of James's OWN games (Havenstead, Moorstead, Saltstead, Marsstead): today's external visitor and play counts with the time they were read, how many are on Marsstead and how many sessions are live on Moorstead, and whether VESPER (Marsstead's AI) is up. Use for 'how are the steads', 'anyone playing', 'steads status'. Owner-only.",
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
@@ -949,7 +949,7 @@ export const TOOL_DEFINITIONS = [ ...OWNER_TASK_DEFINITIONS, ...KNOWLEDGE_DEFINI
   // === MOORSTEAD ADMIN (owner only) ===
   {
     name: 'moorstead_status',
-    description: "Find who is currently online in Moorstead — James's OWN multiplayer voxel game on his server (NOT an external service like Minecraft Realms) — returning each player's name, which world they are in (\"moor\" is the main adult world, \"bairns\" is the children's world) and their coordinates. Use this for ANY question about who is playing, whether a named player is online, or where someone is — e.g. \"who's on\", \"is Henry playing\", \"find Henry in the bairns world\", \"where is X\".",
+    description: "How many sessions are live in Moorstead now, and in which worlds — James's OWN multiplayer voxel game on his server (NOT an external service like Minecraft Realms). \"moor\" is the main adult world, \"bairns\" is the children's world. In Slack this returns a count for each world and never a player's name or position: say so if asked who or where someone is, and point to the Moorstead dashboard. Use it for \"who's on\", \"is anyone playing\", \"anyone in the bairns world\".",
     input_schema: {
       type: 'object',
       properties: {},
