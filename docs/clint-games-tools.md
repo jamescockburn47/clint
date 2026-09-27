@@ -1,5 +1,9 @@
 # Games status tools in Slack (v39)
 
+Amended by release 2 (v40), see `clint-tools-release-2.md`: `steads_status` also gives 7-day figures, and
+`moorstead_status` gives names only to a scope that is positively not Slack. The corrections marked
+"v40" below come from the third review of this release.
+
 Owner direction, 27 September 2026: restore Clint's tools in Slack, starting with the ones that
 only read and whose services are running.
 
@@ -30,7 +34,8 @@ external.
 
 - **A figure is printed only if the ledger supplied it as a whole number, zero or more.** A game
   that answers without its figures is reported as "figures unavailable". A game that does not
-  answer, or answers with an error or with something that is not JSON, is reported as down.
+  answer, or answers with an error, with something that is not JSON, or with JSON that is `null`,
+  `0`, `false` or an empty string, is reported as down (v40: corrected).
   Neither is reported as zero.
 - **The tool's output states the UTC time the figures were read.** Clint's reply is written by
   the model, and nothing forces it to repeat that time.
@@ -42,15 +47,17 @@ The model that reads a tool's output in the private channel holds the owner's to
 Drive and Calendar reads and web requests. So in Slack `moorstead_status` returns no text that a
 player chose:
 
-- It returns a count of live sessions for each of the game's six fixed rooms (`moor`, `dale`,
-  `crag`, `tarn`, `bairns`, `solo`). A session reporting any other room is counted as `other`.
-- Names, places, days, player IDs and addresses are never returned, shortened or otherwise.
+- It returns a count of live sessions for each of `moor`, `dale`, `crag`, `tarn` and `bairns`, and
+  `solo` for a session that reports no room. A session reporting any other room is counted as
+  `other`. A room with no session is left out (v40: corrected).
+- In a Slack scope, and for a caller with no scope, names, places, days, player IDs and addresses
+  are never returned, shortened or otherwise (v40: before v40 a caller with no scope got names).
 - If the ledger cannot be read, the reply is a fixed sentence. Nothing from the ledger's error is
   repeated.
 - The reply is a few hundred characters at most however many are online, so none of it is cut off.
 
-Names remain on the Moorstead dashboard. On transports other than Slack the original reply, with
-names, is unchanged; WhatsApp is retired, so nothing uses it today.
+Names remain on the Moorstead dashboard. A scope on a transport other than Slack gets the original
+reply, with names. WhatsApp is retired. Whether any other process calls the tool is not verified.
 
 `spire_health` shows the venue's version only if it is digits and dots. A successful reply without
 such a version is reported as "answered without a version, so its state is unknown", not as up.
@@ -69,7 +76,9 @@ such a version is reported as "answered without a version, so its state is unkno
 
 The refusal outside the private channel is explicit in `permitsTool`; it does not depend on the
 channel being read-only. The same check runs when tools are chosen for a request and again when
-a tool is executed.
+a tool is executed, wherever a scope exists. For a caller with no scope the dispatcher makes no
+check; that pre-dates this release. Some tools check the scope themselves and refuse without
+one. These three do not, and `moorstead_status` then returns counts (v40: corrected).
 
 The tools are offered whatever category the router gives the request, because a question about
 the games can be classified as conversation, system or general knowledge. One exception: a

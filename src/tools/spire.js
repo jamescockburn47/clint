@@ -6,6 +6,8 @@
 // and can never grant venue entry or an orb.
 const BASE = () => (process.env.SPIRE_VENUE_URL || 'https://spire.lquorum.blog').replace(/\/$/, '');
 const KEY = () => (process.env.SPIRE_TESTER_KEY || '').trim();
+/** A status is printed only if it is a whole number that HTTP uses. It is read once. */
+const code = status => Number.isInteger(status) && status >= 100 && status <= 599 ? status : 'error';
 
 export async function spirePresence() {
   if (!KEY()) return 'Spire presence is not configured (SPIRE_TESTER_KEY missing).';
@@ -40,12 +42,12 @@ export async function spireHealth() {
   try {
     const r = await fetch(`${BASE()}/version.json`, { signal: AbortSignal.timeout(8000) });
     const version = r.ok ? (await r.json())?.version : null;
-    out.push(!r.ok ? `venue HTTP ${Number(r.status) || 'error'}`
+    out.push(!r.ok ? `venue HTTP ${code(r.status)}`
       : /^\d{1,4}(\.\d{1,6}){0,3}$/.test(version) ? `venue up (v${version})` : 'venue answered without a version, so its state is unknown');
   } catch { out.push('venue NOT answering'); }
   try {
     const s = await fetch('https://srv1468396.hstgr.cloud/', { signal: AbortSignal.timeout(8000) });
-    out.push(s.ok ? 'voice signal up' : `voice signal HTTP ${s.status}`);
+    out.push(s.ok ? 'voice signal up' : `voice signal HTTP ${code(s.status)}`);
   } catch { out.push('voice signal NOT answering'); }
   return `Spire health: ${out.join(' · ')}.`;
 }

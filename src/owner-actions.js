@@ -4,7 +4,9 @@ export const SLACK_READS = new Set(['web_search', 'web_fetch', 'knowledge_search
   'knowledge_status', 'repository_status', 'system_status', 'proactive_status', 'proactive_report',
   'soul_read', 'google_read_status', 'calendar_list_calendars', 'calendar_read_events', 'drive_search', 'drive_read',
   // Games status: GET requests to services on this host. Nothing here mints, revokes, broadcasts or kicks.
-  'steads_status', 'moorstead_status', 'spire_health']);
+  'steads_status', 'moorstead_status', 'spire_health',
+  // Free time computed from Calendar events read in full. Permission is that of the other Google reads.
+  'calendar_free_time']);
 
 /** Status of the owner's games. For the owner, in his private channel, and nowhere else. */
 export const GAMES_READS = new Set(['steads_status', 'moorstead_status', 'spire_health']);

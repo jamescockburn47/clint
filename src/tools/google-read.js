@@ -3,17 +3,24 @@ import { currentConversation } from '../conversation-context.js';
 import { createGoogleReader, googleError } from './google-client.js';
 import { knowledgeAllowed } from '../knowledge/tools.js';
 import { BINARY_DOCUMENT_TYPES, XLSX_MIME, extractDocument } from './document-extract.js';
+import { freeTime, validDate } from './calendar-free.js';
 
 const page = z.string().max(4096).optional();
 const id = z.string().regex(/^[\w@.+-]{1,512}$/);
-const calendarId = z.string().min(1).max(512).refine(value => !/[\s\x00-\x1f]/.test(value));
+const calendarId = z.string().min(1).max(512).refine(value => !/[\s\x00-\x1f]/.test(value) && !/^\.+$/.test(value));
 const date = z.string().datetime({ offset: true });
+const hour = z.string().regex(/^(0[3-9]|1\d|2[0-3]):[0-5]\d$/);
 const schemas = {
   google_read_status: z.object({}).strict(),
   calendar_list_calendars: z.object({ page_token: page }).strict(),
   calendar_read_events: z.object({ calendar_id: calendarId.default('primary'), time_min: date, time_max: date,
     query: z.string().max(1000).optional(), page_token: page }).strict()
     .refine(input => Date.parse(input.time_max) > Date.parse(input.time_min), 'invalid_window'),
+  calendar_free_time: z.object({ date: z.string().refine(validDate), days: z.number().int().min(1).max(14).default(1),
+    day_start: hour.default('09:00'), day_end: hour.default('18:00'),
+    minimum_minutes: z.number().int().min(15).max(480).default(30),
+    calendar_ids: z.array(calendarId).min(1).max(5).optional() }).strict()
+    .refine(input => input.day_end > input.day_start, 'invalid_window'),
   drive_search: z.object({ query: z.string().max(1000).optional(), folder_id: id.optional(), page_token: page }).strict(),
   drive_read: z.object({ file_id: id, offset: z.number().int().min(0).max(2_000_000).default(0),
     modified_time: date.optional() }).strict().refine(input => !input.offset || input.modified_time, 'continuation_requires_version'),
@@ -55,6 +62,7 @@ export async function googleRead(name, input, { request = read, allowed = knowle
         nextPageToken: data.nextPageToken || null, completeWindow: !data.nextPageToken && !args.page_token,
         endDatesExclusive: true, availability: 'not_computed' });
     }
+    if (name === 'calendar_free_time') return wrap(await freeTime(args, request, now()));
     if (name === 'drive_search') {
       const clauses = ['trashed = false'];
       if (args.query) clauses.push(`fullText contains '${escapeQuery(args.query)}'`);

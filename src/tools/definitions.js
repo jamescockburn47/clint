@@ -27,7 +27,7 @@ export const TOOL_DEFINITIONS = [ ...OWNER_TASK_DEFINITIONS, ...KNOWLEDGE_DEFINI
   },
   {
     name: 'steads_status',
-    description: "Status across all four of James's OWN games (Havenstead, Moorstead, Saltstead, Marsstead): today's external visitor and play counts with the time they were read, how many are on Marsstead and how many sessions are live on Moorstead, and whether VESPER (Marsstead's AI) is up. Use for 'how are the steads', 'anyone playing', 'steads status'. Owner-only.",
+    description: "Status across all four of James's OWN games (Havenstead, Moorstead, Saltstead, Marsstead): today's and the last 7 days' external visitor and play counts with the time they were read, how many are on Marsstead and how many sessions are live on Moorstead, and whether VESPER (Marsstead's AI) is up. Use for 'how are the steads', 'anyone playing', 'steads status'. Owner-only.",
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {

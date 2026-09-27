@@ -35,24 +35,32 @@ export async function steadsStatus() {
   ]);
   const lines = ['*The Steads — status*',
     `As of ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC. Figures are external browsers, not people: `
-      + 'owner devices and known bots are excluded unless a line says otherwise. "Today" is the UTC day.'];
+      + 'owner devices and known bots are excluded unless a line says otherwise. "Today" is the UTC day. '
+      + '"Last 7 days" is each ledger\'s own window ending today. As the ledgers were written on 27 September 2026, '
+      + 'Moorstead\'s covers eight UTC dates and the others seven.'];
   // A ledger that answers without a figure has not reported zero. Every figure is checked before it is printed.
-  const line = (game, source, down, figures, text) => lines.push(!source ? `${game}: ${down}`
-    : figures.some(value => value === null) ? `${game}: figures unavailable` : `${game}: ${text(...figures)}`);
+  // The 7-day figures are separate: a ledger without them still reports today.
+  const recent = week => week === undefined ? '' : week.some(value => value === null) ? '; last 7 days unavailable'
+    : `; last 7 days: ${week[0]} visited` + (week.length > 1 ? `, ${week[1]} played` : '');
+  const line = (game, source, down, figures, text, week) => lines.push(!source ? `${game}: ${down}`
+    : figures.some(value => value === null) ? `${game}: figures unavailable` : `${game}: ${text(...figures)}${recent(week)}`);
   const havenToday = haven?.visits?.havenstead?.today?.real;
   line('Havenstead', haven, 'intake down', [count(havenToday?.uniques), count(havenToday?.playUniques)],
-    (visited, played) => `${visited} visited today, ${played} started play`);
+    (visited, played) => `${visited} visited today, ${played} started play; the intake keeps no 7-day figure`);
   const moorReal = moor?.stats?.real, sessions = Array.isArray(moor?.live) ? moor.live.length : null;
   line('Moorstead', moor, 'ledger down', [count(moorReal?.today), count(moorReal?.playedToday), count(moorReal?.total), sessions],
     (visited, played, ever, live) => `${visited} visited today, ${played} played, ${ever} external browsers ever; `
-      + `${live} live sessions now, counting every device including the owner's`);
+      + `${live} live sessions now, counting every device including the owner's`,
+    [count(moorReal?.week), count(moorReal?.playedWeek)]);
   const saltToday = salt?.visits?.saltstead?.today?.real, saltEver = salt?.visits?.saltstead?.ever?.real;
   line('Saltstead', salt, 'ledger down', [count(saltToday?.uniques), count(saltToday?.playUniques), count(saltEver?.players)],
-    (visited, played, ever) => `${visited} visited today, ${played} started play, ${ever} external players ever`);
+    (visited, played, ever) => `${visited} visited today, ${played} started play, ${ever} external players ever`,
+    [count(salt?.visits?.saltstead?.week?.real?.uniques), count(salt?.visits?.saltstead?.week?.real?.playUniques)]);
   const marsToday = mars?.muster?.today?.real, marsLive = Array.isArray(mars?.live?.real) ? mars.live.real.length : null;
   const vesper = typeof mars?.vesper?.up === 'boolean' ? (mars.vesper.up ? 'up' : 'DOWN') : 'state unknown';
   line('Marsstead', mars, 'ledger down', [count(marsToday?.uniques), marsLive],
-    (visited, live) => `${live} on now, ${visited} visited today; VESPER ${vesper}`);
+    (visited, live) => `${live} on now, ${visited} visited today; VESPER ${vesper}`,
+    [count(mars?.muster?.week?.real?.uniques)]);
   if (isMuted()) lines.push('(Clint notifications are muted)');
   return lines.join('\n');
 }

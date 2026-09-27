@@ -70,7 +70,7 @@ test('known-bad: restoring the reads restores no tool that acts, and changes not
     'knowledge_read', 'knowledge_search', 'knowledge_status', 'memory_search', 'proactive_report', 'proactive_status',
     'repository_status', 'soul_read', 'system_status', 'task_list', 'task_read', 'task_save', 'task_set_status',
     'web_fetch', 'web_search'];
-  assert.deepEqual(permitted(owner).sort(), [...before, ...READS].sort());
+  assert.deepEqual(permitted(owner).sort(), [...before, ...READS, 'calendar_free_time'].sort());
   for (const name of ACTS) { assert.ok(names.includes(name)); assert.equal(permitsTool(name, undefined, owner, core), false, name); }
   const publicReads = ['knowledge_read', 'knowledge_search', 'knowledge_status', 'memory_search', 'proactive_report',
     'proactive_status', 'repository_status', 'system_status', 'web_fetch', 'web_search'];
@@ -84,13 +84,16 @@ const bodies = {
   'http://127.0.0.1:8104/api/visits': { visits: { havenstead: { today: { real: { uniques: 2, playUniques: 1 },
     house: { uniques: 71, playUniques: 72 }, bot: { uniques: 91, playUniques: 0 } } } } },
   'http://127.0.0.1:8095/api/overview': { live: [{ name: 'Ada', pid: 'p1', room: 'moor' }, { name: 'Owner', pid: 'p2' }],
-    stats: { today: 121, total: 811, playedToday: 55, real: { today: 3, playedToday: 4, total: 179 },
+    stats: { today: 121, total: 811, playedToday: 55, week: 300, playedWeek: 90,
+      real: { today: 3, playedToday: 4, total: 179, week: 21, playedWeek: 2 },
       house: { today: 81, total: 575 }, bot: { today: 10, total: 57 } } },
   'http://127.0.0.1:8097/api/visits': { visits: { saltstead: { today: { visits: 66, uniques: 61,
     real: { uniques: 5, playUniques: 6 }, house: { uniques: 0, playUniques: 0 }, bot: { uniques: 56, playUniques: 0 } },
+  week: { visits: 40, uniques: 30, real: { uniques: 11, playUniques: 1 }, bot: { uniques: 19, playUniques: 0 } },
   ever: { visits: 1035, plays: 284, browsers: 371, players: 187, real: { browsers: 184, players: 38 },
     house: { browsers: 0, players: 0 }, bot: { browsers: 187, players: 149 } } } } },
-  'http://127.0.0.1:8098/api/summary': { muster: { today: { visits: 99, real: { uniques: 7, playUniques: 0 } } },
+  'http://127.0.0.1:8098/api/summary': { muster: { today: { visits: 99, real: { uniques: 7, playUniques: 0 } },
+    week: { visits: 50, real: { uniques: 12, playUniques: 0 }, bot: { uniques: 9, playUniques: 0 } } },
     live: { real: [{}, {}, {}], house: [{}] }, vesper: { up: true } },
 };
 const [HAVEN, MOOR, SALT, MARS] = Object.keys(bodies);
@@ -115,7 +118,7 @@ test('the restored reads are offered in every category, survive final selection,
   const requested = [];
   globalThis.fetch = async (url, options) => { requested.push(String(url)); return serve(bodies)(url, options); };
   // Each tool's own output comes back, so a handler that returned early or an error would fail here.
-  assert.match(await run(owner, 'steads_status'), /^\*The Steads — status\*\nAs of .*\nHavenstead: 2 visited today, 1 started play\n/);
+  assert.match(await run(owner, 'steads_status'), /^\*The Steads — status\*\nAs of .*\nHavenstead: 2 visited today, 1 started play; the intake keeps no 7-day figure\n/);
   assert.equal(await run(owner, 'moorstead_status'), "*Moorstead* — 2 live sessions now, counting every device including the owner's. "
     + "moor: 1, solo: 1. Players' names are not shown here; the Moorstead dashboard has them.");
   assert.equal(await run(owner, 'spire_health'), 'Spire health: venue up (v0.0.128) · voice signal up.');
@@ -139,10 +142,10 @@ test('steads status covers all four games with external figures only, and only r
   assert.equal(title, '*The Steads — status*');
   assert.match(header, /^As of \d{4}-\d\d-\d\d \d\d:\d\d UTC\. Figures are external browsers, not people: /);
   assert.deepEqual(figures(text).split('\n'), [
-    'Havenstead: 2 visited today, 1 started play',
-    "Moorstead: 3 visited today, 4 played, 179 external browsers ever; 2 live sessions now, counting every device including the owner's",
-    'Saltstead: 5 visited today, 6 started play, 38 external players ever',
-    'Marsstead: 3 on now, 7 visited today; VESPER up']);
+    'Havenstead: 2 visited today, 1 started play; the intake keeps no 7-day figure',
+    "Moorstead: 3 visited today, 4 played, 179 external browsers ever; 2 live sessions now, counting every device including the owner's; last 7 days: 21 visited, 2 played",
+    'Saltstead: 5 visited today, 6 started play, 38 external players ever; last 7 days: 11 visited, 1 played',
+    'Marsstead: 3 on now, 7 visited today; VESPER up; last 7 days: 12 visited']);
 });
 
 test('known-bad: a game that answers without its figures is not reported as zero', async () => {
@@ -181,7 +184,7 @@ test('known-bad: a game that answers without its figures is not reported as zero
   assert.match(await steadsStatus(), /Havenstead: intake down/);
   for (const [vesper, shown] of [[{ up: false }, 'VESPER DOWN'], [{}, 'VESPER state unknown'], [undefined, 'VESPER state unknown'], [{ up: 'yes' }, 'VESPER state unknown']]) {
     globalThis.fetch = broken(MARS, body => ({ ...body, vesper }));
-    assert.match(await steadsStatus(), new RegExp(`Marsstead: 3 on now, 7 visited today; ${shown}$`, 'm'));
+    assert.match(await steadsStatus(), new RegExp(`Marsstead: 3 on now, 7 visited today; ${shown}; last 7 days: 12 visited$`, 'm'));
   }
   for (const value of [0, 1, 179]) assert.equal(count(value), value);
   for (const value of [-1, 1.5, '2', null, undefined, NaN, Infinity, {}, true]) assert.equal(count(value), null, String(value));
@@ -214,9 +217,12 @@ test('known-bad: in Slack, Moorstead presence returns no text a player chose, ho
   }
   globalThis.fetch = async () => { throw new Error('MARK connection refused'); };
   assert.equal(await run(owner, 'moorstead_status'), 'Moorstead: the ledger could not be read; presence unavailable.');
-  // Outside Slack the original reply, names included, is unchanged.
+  // On a transport that is positively not Slack the original reply, names included, is unchanged. No scope gets counts.
   globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ live: [{ name: 'Ada', room: 'moor', loc: 'Croft', day: 3 }] }) });
-  assert.equal(await moorsteadStatus(), '*Moorstead* — 1 on now. moor: Ada (Croft, day 3).');
+  const legacy = createConversationContext({ transport: 'whatsapp', conversationId: 'owner@s.whatsapp.net',
+    actorId: base.ownerId, ownerId: base.ownerId, audience: 'direct' });
+  assert.equal(await run(legacy, 'moorstead_status'), '*Moorstead* — 1 on now. moor: Ada (Croft, day 3).');
+  assert.doesNotMatch(await moorsteadStatus(), /Ada|Croft/);
 });
 
 test('Spire health only reads, sends no key, and claims the venue is up only on a successful reply with a version', async () => {

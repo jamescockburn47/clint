@@ -12,10 +12,11 @@ const OVERVIEW = 'http://127.0.0.1:8095/api/overview';
  * moorstead_status. In Slack it returns how many sessions are live in each room and nothing else.
  * Names and places are chosen by players, and the model that reads this holds the owner's tools,
  * so no text a player chose is returned: not shortened, not filtered, not at all.
- * Other transports keep the original reply.
+ * A scope that is positively some other transport keeps the original reply. No scope at all gets counts only.
  */
 export async function moorsteadStatus(input) {
-  if (currentConversation()?.transport !== 'slack') return statusWithNames(input);
+  const scope = currentConversation();
+  if (scope && scope.transport !== 'slack') return statusWithNames(input);
   let data;
   try {
     const response = await fetch(OVERVIEW, { signal: AbortSignal.timeout(4000) });
