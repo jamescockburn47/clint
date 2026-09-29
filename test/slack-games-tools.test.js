@@ -70,7 +70,7 @@ test('known-bad: restoring the reads restores no tool that acts, and changes not
     'knowledge_read', 'knowledge_search', 'knowledge_status', 'memory_search', 'proactive_report', 'proactive_status',
     'repository_status', 'soul_read', 'system_status', 'task_list', 'task_read', 'task_save', 'task_set_status',
     'web_fetch', 'web_search'];
-  assert.deepEqual(permitted(owner).sort(), [...before, ...READS, 'calendar_free_time', 'admission_log'].sort());
+  assert.deepEqual(permitted(owner).sort(), [...before, ...READS, 'calendar_free_time', 'admission_log', 'mcp_call', 'mcp_list_tools'].sort());
   for (const name of ACTS) { assert.ok(names.includes(name)); assert.equal(permitsTool(name, undefined, owner, core), false, name); }
   const publicReads = ['knowledge_read', 'knowledge_search', 'knowledge_status', 'memory_search', 'proactive_report',
     'proactive_status', 'repository_status', 'system_status', 'web_fetch', 'web_search'];

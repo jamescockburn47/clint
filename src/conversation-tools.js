@@ -25,6 +25,8 @@ export function permitsTool(name, input, scope = currentConversation(), core = c
   if (PRIVATE_READS.has(name) && !gamesReadsAllowed(scope)) return false;
   // The log is Slack's inbox: a scope on another transport, or no scope, has no use for it and is not offered it.
   if (name === 'admission_log' && scope?.transport !== 'slack') return false;
+  // MCP tools are Slack's, for the owner in his private channel; no other transport or background job has them.
+  if (['mcp_list_tools', 'mcp_call'].includes(name) && scope?.transport !== 'slack') return false;
   if (scope?.transport === 'slack' && !SLACK_READS.has(name) && !READ_ONLY_TOOLS.has(name)) return false;
   if (scope?.transport === 'slack' && scope.policy.workspaceShared &&
       (GOOGLE_READ_NAMES.includes(name) || /^(gmail_|calendar_|drive_|google_)/.test(name))) return false;

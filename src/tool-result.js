@@ -17,7 +17,7 @@ export function boundToolResult(name, result) {
       return data && typeof data === 'object' && !Array.isArray(data) ? result : unavailable('invalid_task_result');
     } catch { return unavailable('invalid_task_result'); }
   }
-  if (['web_search', 'web_fetch'].includes(name)) {
+  if (['web_search', 'web_fetch', 'mcp_list_tools', 'mcp_call'].includes(name)) {
     return typeof result === 'string' && result.length <= EVIDENCE_LIMIT ? result : unavailable('web_result_too_large');
   }
   if (!EVIDENCE_TOOLS.has(name)) {

@@ -14,7 +14,7 @@ export const LANE_CALL_RESERVE = 40;
 export const LANE_ANSWER_TOKENS = 2048;
 export const LANE_TOOL_ROUNDS = 2;
 
-export const SLACK_PROMPT_VERSION = 'clint-shared-core-v41';
+export const SLACK_PROMPT_VERSION = 'clint-shared-core-v43';
 
 /** Issue request scope, handle explicit diagnostics and pass ordinary conversation to Clint's core. */
 export function makeSlackGenerator(config, service = new LLMService({

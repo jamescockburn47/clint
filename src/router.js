@@ -18,7 +18,7 @@ const AVAILABLE_READ_TOOLS = new Set(['task_list', 'task_read', 'system_status',
   // A permitted read is offered whatever category the request was given. Before v40 the Google reads and saved
   // reports were offered only to a request classified as planning, so a calendar question could not reach Calendar.
   'google_read_status', 'calendar_list_calendars', 'calendar_read_events', 'calendar_free_time', 'drive_search', 'drive_read',
-  'proactive_status', 'proactive_report', 'admission_log']);
+  'proactive_status', 'proactive_report', 'admission_log', 'mcp_list_tools', 'mcp_call']);
 
 const CATEGORY_TOOLS = {
   [CATEGORY.CALENDAR]: new Set(['calendar_list_events', 'calendar_create_event', 'calendar_update_event', 'calendar_find_free_time']),

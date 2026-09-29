@@ -93,7 +93,7 @@ test('release is v41 or later; the log is permitted to the owner in the private 
     'knowledge_read', 'knowledge_search', 'knowledge_status', 'memory_search', 'moorstead_status', 'proactive_report', 'proactive_status',
     'repository_status', 'soul_read', 'spire_health', 'steads_status', 'system_status', 'task_list', 'task_read', 'task_save', 'task_set_status',
     'web_fetch', 'web_search'];
-  assert.deepEqual(names(owner).map(tool => tool.name).sort(), [...before, 'admission_log'].sort());
+  assert.deepEqual(names(owner).map(tool => tool.name).sort(), [...before, 'admission_log', 'mcp_call', 'mcp_list_tools'].sort());
 });
 
 test('the log answers why a message got no answer: refused messages with reasons, and accepted ones that failed', t => {
