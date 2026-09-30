@@ -4,6 +4,7 @@ import { createConversationContext, withConversationContext } from '../conversat
 import { isControlReply, MAX_REPLY_CHARACTERS } from './policy.js';
 import { teachingContextText } from './teaching.js';
 import { quickCommand } from './quick-commands.js';
+import { MCP_REPORT_MARK } from './mcp-trust.js';
 import { requestedThinking, inferenceBudget } from '../inference-policy.js';
 import { matchesEvent } from './workspace-channels.js';
 import { getDailyCalls, checkDailyLimit } from '../usage-tracker.js';
@@ -14,7 +15,7 @@ export const LANE_CALL_RESERVE = 40;
 export const LANE_ANSWER_TOKENS = 2048;
 export const LANE_TOOL_ROUNDS = 2;
 
-export const SLACK_PROMPT_VERSION = 'clint-shared-core-v44';
+export const SLACK_PROMPT_VERSION = 'clint-shared-core-v45';
 
 /** Issue request scope, handle explicit diagnostics and pass ordinary conversation to Clint's core. */
 export function makeSlackGenerator(config, service = new LLMService({
@@ -47,7 +48,8 @@ export function makeSlackGenerator(config, service = new LLMService({
     for (const item of [...fallbackHistory].reverse()) {
       size += JSON.stringify(item).length;
       if (size > 48000) break;
-      exchanges.unshift({ ...(item.owner ? { actorId: item.owner } : {}), user: item.text, clint: item.answer });
+      exchanges.unshift({ ...(item.owner ? { actorId: item.owner } : {}), user: item.text,
+        clint: String(item.answer ?? '').startsWith(MCP_REPORT_MARK) ? '[MCP server report omitted: server-written text]' : item.answer });
     }
     // Source text never supplies executable identity or policy.
     const conversationEvidence = teachingContextText(teaching) + JSON.stringify({

@@ -3,17 +3,22 @@
 //   1. URL provenance — web_fetch may open only a URL the owner typed in the message being answered, or one that appeared
 //      verbatim in a tool result in this conversation in the last 24 hours. Clint cannot compose a URL, so it cannot append
 //      data to one. (Search first, then open a result.)
-//   2. Leak guard — an outbound request (web_search, web_fetch, mcp_*) is refused if its input, raw or decoded, alone or joined
-//      with the turn's earlier outbound text, carries a span of private tool output (39+ normalised characters) the owner did
-//      not type himself.
+//   2. Leak guard — a request that reaches a server an attacker could run (web_fetch, mcp_*) is refused if its input, raw or
+//      decoded, alone or joined with the turn's earlier such text, carries a span of private tool output (39+ normalised
+//      characters) the owner did not type himself. web_search is checked only after flagged/unscanned content, or when it is
+//      aimed (include_domains or site:) at a domain the owner did not name: otherwise its queries go to the search provider,
+//      which a page author cannot read directly, so the owner can ask Clint to research details from his own records (v45).
 //   3. After untrusted content the injection classifier flagged or could not scan: MCP only at a URL the owner typed now.
-//   4. After any untrusted content in the turn, no tool that writes (FIDES P-T in coarse form).
+//   4. After any untrusted content in the turn, no tool that writes, except the owner's own task list (local, reversible);
+//      owner-approved MCP tools the server does not mark read-only are refused likewise, in mcp-tools.js (FIDES P-T, coarse).
 // The URL checked is the URL sent: web_fetch receives the canonical form that matched.
 // Stated residuals (not closed):
 // - private context that never came from a tool (Slack history, earlier exchanges, memory, the system prompt) is not
 //   fingerprinted; the leak guard knows only tool results;
-// - paraphrased or re-encoded private data (beyond the decodings in leak-guard.js) in web_search queries — which go to Tavily,
-//   a third party that keeps them (SearXNG fallback) — and in MCP arguments to a server the owner named for MCP;
+// - private data in web_search queries, verbatim or not: they go to Tavily, a third party that keeps them (SearXNG fallback);
+//   indirectly, a site's search-console query reports and which result links come back can reveal something of a query;
+// - text an injected page gets saved into a task can come back later through task_read as if private (owner-visible list);
+// - paraphrased or re-encoded private data (beyond the decodings in leak-guard.js) in MCP arguments to a server the owner added;
 // - which known URL is opened is itself a signal (a hostile page listing many links): in every turn (history and memory
 //   are always private context), at most MAX_UNTRUSTED_FETCHES links not typed by the owner may be opened, which bounds but
 //   does not close it;
@@ -24,6 +29,7 @@ import { executeTool } from '../tools/handler.js';
 import { currentConversation } from '../conversation-context.js';
 import { LeakGuard, strings } from './leak-guard.js';
 import { scanUntrusted, scannable } from './injection-guard.js';
+import { turnState as turn } from './turn-state.js';
 import logger from '../logger.js';
 
 export const OUTBOUND = new Set(['web_search', 'web_fetch', 'mcp_list_tools', 'mcp_call']);
@@ -34,15 +40,13 @@ const READS = new Set(['knowledge_search', 'knowledge_read', 'knowledge_status',
   'calendar_list_calendars', 'calendar_read_events', 'calendar_free_time', 'drive_search', 'drive_read', 'google_read_status',
   'soul_read', 'memory_search', 'task_list', 'task_read', 'proactive_status', 'proactive_report', 'admission_log',
   'steads_status', 'moorstead_status', 'spire_health', 'web_search', 'web_fetch', 'mcp_list_tools', 'mcp_call']);
-const URL_TTL_MS = 24 * 3600 * 1000, MAX_UNTRUSTED_FETCHES = 3;
+/** The owner's own task list: local and reversible; stays writable after untrusted content. */
+const OWNER_VISIBLE_WRITES = new Set(['task_save', 'task_set_status']);
+/** Outbound calls whose arguments reach a server an attacker could run, so they pass the leak guard. */
+const LEAK_CHECKED = new Set(['web_fetch', 'mcp_list_tools', 'mcp_call']);
+const URL_TTL_MS = 24 * 3600 * 1000, MAX_UNTRUSTED_FETCHES = 6;
 
 export const leakGuard = new LeakGuard();
-const turns = new WeakMap();
-const turn = scope => {
-  // private: true from the start — Slack history and memory are private context in every turn, tool read or not.
-  if (!turns.has(scope)) turns.set(scope, { tainted: null, untrusted: false, private: true, fetchedAfterPrivate: 0, outbound: [] });
-  return turns.get(scope);
-};
 const seenUrls = new Map(); // conversationId -> Map(url -> expiry)
 const refuse = (reason, detail) => JSON.stringify({ state: 'refused', reason, detail });
 
@@ -80,10 +84,18 @@ export function urlKnown(url, scope, now = Date.now()) {
 /** The part of a call's input that can carry new data: a known URL (owner-typed or seen verbatim) cannot, so it is left out. */
 const checkedInput = (name, input, scope) => (name === 'web_fetch' && urlKnown(input?.url, scope) ? { ...input, url: undefined } : input);
 
+/** A search restricted to a domain the owner did not name (include_domains or site:) can land in that site's reports. */
+function aimedElsewhere(input, scope) {
+  const named = [...urlsIn(scope.originalRequest)].map(url => new URL(url).hostname.toLowerCase());
+  const domains = [...(Array.isArray(input?.include_domains) ? input.include_domains : []),
+    ...[...String(input?.query ?? '').matchAll(/\bsite:([^\s/]+)/gi)].map(m => m[1])].map(d => String(d).toLowerCase());
+  return domains.some(domain => !named.some(host => host === domain || host.endsWith('.' + domain)));
+}
+
 /** The reason a call is refused before it runs, or null. */
 export function precheck(name, input, scope, state = turn(scope)) {
-  if (state.untrusted && !READS.has(name)) {
-    return ['untrusted_content_restricts_writes', 'This turn has read untrusted web or MCP content. No tool that writes may run now.'];
+  if (state.untrusted && !READS.has(name) && !OWNER_VISIBLE_WRITES.has(name)) {
+    return ['untrusted_content_restricts_writes', 'This turn has read untrusted web or MCP content. No tool that acts may run now.'];
   }
   if (name === 'web_fetch' && !urlKnown(input?.url, scope)) {
     return ['url_not_from_owner_or_results', 'web_fetch opens only a URL the owner gave in his message or one found verbatim in a '
@@ -91,14 +103,14 @@ export function precheck(name, input, scope, state = turn(scope)) {
   }
   if (name === 'web_fetch' && state.private && !urlsIn(scope.originalRequest).has(canonical(input?.url))
       && state.fetchedAfterPrivate >= MAX_UNTRUSTED_FETCHES) {
-    return ['fetch_limit_after_private_read', `After reading private data, at most ${MAX_UNTRUSTED_FETCHES} links from results may be `
-      + 'opened in one message. Ask again in a new message, or give the link.'];
+    return ['fetch_limit_after_private_read', `At most ${MAX_UNTRUSTED_FETCHES} links from results may be opened in one message. `
+      + 'Ask again in a new message, or give the link.'];
   }
   if (MCP.has(name) && state.tainted && !urlsIn(scope.originalRequest).has(canonical(input?.url))) {
     return ['untrusted_content_restricts_mcp', `Earlier untrusted content in this turn was ${state.tainted} by the injection guard. `
       + 'MCP only at a URL the owner typed in this message.'];
   }
-  if (OUTBOUND.has(name)) {
+  if (LEAK_CHECKED.has(name) || (name === 'web_search' && (state.tainted || aimedElsewhere(input, scope)))) {
     // A known URL (owner-typed or seen verbatim) cannot carry new data, so it is not itself checked: a long calendar or archive
     // link can be opened. Every other field is.
     const checked = checkedInput(name, input, scope);
@@ -118,6 +130,12 @@ function contentless(result) {
   try { return NO_CONTENT.has(JSON.parse(result)?.state); } catch { return false; }
 }
 
+/** The host of a listing that matched the report the owner saw at mcp add (set by mcp-tools.js), or null. */
+function pinnedCleanHost(name, result) {
+  if (name !== 'mcp_list_tools') return null;
+  try { const host = JSON.parse(result)?.pinnedCleanHost; return typeof host === 'string' && host ? host : null; } catch { return null; }
+}
+
 /** Scan an untrusted result; MCP results carry their own scan verdict, set by mcp-tools. */
 async function verdict(name, result) {
   if (MCP.has(name)) {
@@ -135,16 +153,23 @@ export async function guardedExecuteTool(name, input, senderJid, chatJid) {
     logger.warn({ tool: name, reason: blocked[0], requestId: scope.requestId }, 'flow guard refused a tool call');
     return refuse(...blocked);
   }
-  if (OUTBOUND.has(name)) state.outbound.push(...strings(checkedInput(name, input, scope))); // what was checked, so a known URL is not held against later calls
+  if (LEAK_CHECKED.has(name)) state.outbound.push(...strings(checkedInput(name, input, scope))); // what was checked, so a known URL is not held against later calls
   if (name === 'web_fetch') {
     if (state.private && !urlsIn(scope.originalRequest).has(canonical(input?.url))) state.fetchedAfterPrivate++;
     input = { ...input, url: canonical(input.url) }; // send exactly the URL that was checked
   }
   const result = await executeTool(name, input, senderJid, chatJid);
+  return noteToolResult(name, result, scope, state);
+}
+
+/** After a tool ran: remember URLs, fingerprint private results, and mark or scan untrusted content (exported for tests). */
+export async function noteToolResult(name, result, scope, state = turn(scope)) {
   if (typeof result !== 'string') return result;
   rememberUrls(scope.conversationId, [result]);
   if (UNTRUSTED.has(name)) {
     if (contentless(result)) return result;
+    const cleanHost = pinnedCleanHost(name, result);
+    if (cleanHost) { state.cleanListingHosts.add(cleanHost); return result; }
     state.untrusted = true;
     const found = await verdict(name, result);
     if (found !== 'clean' && !state.tainted) {

@@ -1,4 +1,5 @@
 import { matchesEvent, authorizeActor } from './workspace-channels.js';
+import { MCP_REPORT_MARK } from './mcp-trust.js';
 import { authorizeChannel } from './channel-access.js';
 
 const STAMP = /^\d{10}\.\d{6}$/;
@@ -47,7 +48,9 @@ async function readPages(web, method, args, event) {
             (message.channel && message.channel !== event.channel) ||
             (method === 'replies' && (message.thread_ts || message.ts) !== event.thread) ||
             (message.subtype && !['bot_message', 'thread_broadcast'].includes(message.subtype))) continue;
-        const text = visibleSlackText(message);
+        // An MCP add report carries server-written text: it never re-enters the model's context as Clint's own words.
+        const text = message.bot_id && visibleSlackText(message).startsWith(MCP_REPORT_MARK) ? '[MCP server report omitted: server-written text]'
+          : visibleSlackText(message);
         if (!text || !(ACTOR.test(message.user || '') || message.bot_id)) continue;
         messages.set(message.ts, { ts: message.ts, thread: message.thread_ts || message.ts,
           actorId: message.user || message.bot_id, text });

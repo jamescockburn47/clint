@@ -63,8 +63,12 @@ export async function quickCommand(text, config, { status = systemStatus, getToo
   const scope = currentConversation();
   if (!scope || scope.transport !== 'slack' || (!scope.isOwner && !scope.policy.workspaceShared) || !scope.localOnly ||
       scope.webOnly || scope.audience !== 'group' || !scope.privateContext || scope.policy.mode !== 'open') return null;
-  const mcp = mcpCommand(text, scope); // owner MCP trust commands are code, not model output
-  if (mcp !== null) return mcp;
+  const mcp = await mcpCommand(text, scope); // owner MCP commands are code, not model output
+  if (mcp !== null) {
+    const mcpFilter = filterResponse(mcp, scope.conversationId);
+    if (!mcpFilter.safe) return getBlockedResponse(mcpFilter.reason);
+    return outboundQuerySafe(mcp, core) ? mcp : "I can't share that information.";
+  }
   const match = typeof text === 'string' && /^clint (help|status|about|setup)$/i.exec(text.trim());
   const command = match ? match[1].toLowerCase() : selfDescriptionCommand(text);
   if (!command) return null;
