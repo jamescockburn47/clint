@@ -107,7 +107,7 @@ async function coreHarness(t, responses, extra = {}) {
   writeFileSync(input, rows.map(JSON.stringify).join('\n')); await buildKnowledge(input, path);
   const before = readFileSync(path); let calls = 0, reads = 0, critiques = 0;
   const { LLMService } = await esmock('../src/claude.js', {
-    '../src/tools/handler.js': { executeTool: async (name, args) => {
+    '../src/slack/flow-guard.js': { guardedExecuteTool: async (name, args) => {
       reads++; return knowledgeTool('search', args, { path });
     } },
     '../src/usage-tracker.js': { checkDailyLimit: () => true, incrementDailyCalls: () => 1,

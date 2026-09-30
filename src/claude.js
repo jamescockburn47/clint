@@ -7,7 +7,7 @@ import { createArchiveAttemptEvidence } from './archive-attempt-evidence.js';
 import { getSystemPrompt } from './prompt.js';
 import { TOOL_DEFINITIONS } from './tools/definitions.js';
 import { capabilityPrompt } from './runtime-status.js';
-import { executeTool } from './tools/handler.js';
+import { guardedExecuteTool as executeTool } from './slack/flow-guard.js'; // v44: every tool call passes the flow guard
 import { getToolsForCategory, mustUseClaude, CATEGORY } from './router.js';
 import { analyseImage } from './memory.js';
 import { CircuitBreaker } from './circuit-breaker.js';

@@ -16,7 +16,7 @@ async function harness(responses, { scope = makeScope(), critique = false } = {}
   const requests = [], reads = [];
   let usageCalls = 0, critiques = 0;
   const { LLMService } = await esmock('../src/claude.js', {
-    '../src/tools/handler.js': { executeTool: async (name, input) => {
+    '../src/slack/flow-guard.js': { guardedExecuteTool: async (name, input) => {
       reads.push({ name, input }); return JSON.stringify({ id: input.id, source: 'synthetic evidence' });
     } },
     '../src/usage-tracker.js': { checkDailyLimit: () => true, incrementDailyCalls: () => 1,

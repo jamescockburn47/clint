@@ -5,6 +5,7 @@ import { filterResponse, getBlockedResponse } from '../output-filter.js';
 import { outboundQuerySafe } from '../outbound-query.js';
 import { systemStatus } from '../runtime-status.js';
 import { renderAbout, renderSetup, selfDescriptionCommand } from './self-description.js';
+import { mcpCommand } from './mcp-tools.js';
 
 const GROUPS = [
   [['web_search', 'web_fetch'], 'Research the web and read public sources.'],
@@ -62,6 +63,8 @@ export async function quickCommand(text, config, { status = systemStatus, getToo
   const scope = currentConversation();
   if (!scope || scope.transport !== 'slack' || (!scope.isOwner && !scope.policy.workspaceShared) || !scope.localOnly ||
       scope.webOnly || scope.audience !== 'group' || !scope.privateContext || scope.policy.mode !== 'open') return null;
+  const mcp = mcpCommand(text, scope); // owner MCP trust commands are code, not model output
+  if (mcp !== null) return mcp;
   const match = typeof text === 'string' && /^clint (help|status|about|setup)$/i.exec(text.trim());
   const command = match ? match[1].toLowerCase() : selfDescriptionCommand(text);
   if (!command) return null;

@@ -80,13 +80,14 @@ export class McpHttpClient {
    * @param {string} [opts.clientVersion]
    * @param {number} [opts.defaultTimeoutMs] — used when a call passes no timeout
    */
-  constructor({ url, headers = {}, clientName = 'clawd', clientVersion = '1.0.0', defaultTimeoutMs = 70000, general = false }) {
+  constructor({ url, headers = {}, clientName = 'clawd', clientVersion = '1.0.0', defaultTimeoutMs = 70000, general = false, fetchImpl = null }) {
     this.url = url;
     this.headers = headers;
     this.clientName = clientName;
     this.clientVersion = clientVersion;
     this.defaultTimeoutMs = defaultTimeoutMs;
     this.general = general;
+    this.fetchImpl = fetchImpl || ((...args) => fetch(...args));
     this.sessionId = null;
     this.initialized = false;
     this._id = 0;
@@ -100,7 +101,7 @@ export class McpHttpClient {
   }
 
   async _post(payload, timeoutMs) {
-    const res = await fetch(this.url, {
+    const res = await this.fetchImpl(this.url, {
       method: 'POST',
       headers: { 'content-type': 'application/json',
         accept: this.general ? 'application/json, text/event-stream' : 'application/json',
@@ -127,6 +128,8 @@ export class McpHttpClient {
     const body = this.general
       ? await readAnswer(res, id, GENERAL_MAX_BYTES)
       : await res.json().catch(() => ({}));
+    // General mode: a server's error words are never passed on (they would reach the model unscanned); the code is enough.
+    if (body.error && this.general) throw new Error(`mcp_server_error ${Number.isInteger(body.error.code) ? body.error.code : 'unknown'}`);
     if (body.error) throw new Error(`MCP ${method} error ${body.error.code}: ${body.error.message}`);
     return body.result;
   }
@@ -168,7 +171,7 @@ export class McpHttpClient {
   async close(timeoutMs = 5000) {
     if (!this.general || !this.sessionId) return;
     try {
-      const res = await fetch(this.url, { method: 'DELETE', headers: { ...this._generalHeaders(), ...this.headers },
+      const res = await this.fetchImpl(this.url, { method: 'DELETE', headers: { ...this._generalHeaders(), ...this.headers },
         signal: AbortSignal.timeout(timeoutMs) });
       await res.body?.cancel();
     } catch (err) {

@@ -68,7 +68,7 @@ test('parallel request contexts do not suppress or enable another audience rewri
 async function throughCore({ blocked = false, canary = false } = {}) {
   let calls = 0;
   const { LLMService } = await esmock('../src/claude.js', {
-    '../src/tools/handler.js': { executeTool: async () => JSON.stringify({ source: 'synthetic', text: DRAFT }) },
+    '../src/slack/flow-guard.js': { guardedExecuteTool: async () => JSON.stringify({ source: 'synthetic', text: DRAFT }) },
     '../src/usage-tracker.js': { checkDailyLimit: () => true, incrementDailyCalls: () => 1,
       trackTokens: () => {}, recordCallInUsage: () => {} },
   });

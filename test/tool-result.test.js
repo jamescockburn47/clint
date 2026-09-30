@@ -28,7 +28,7 @@ for (const tool of ['knowledge_read', 'task_save', 'task_read', 'task_list', 'ta
 test(`real shared-core loop passes complete ${tool} result to its next model request`, async () => {
   const payload = JSON.stringify({ state: 'snapshot', records: [{ id: 's1', text: 'x'.repeat(5000) + ' Trailing denial preserved.' }] });
   const { LLMService } = await esmock('../src/claude.js', {
-    '../src/tools/handler.js': { executeTool: async () => payload },
+    '../src/slack/flow-guard.js': { guardedExecuteTool: async () => payload },
     '../src/usage-tracker.js': { trackTokens: () => {} },
   });
   const service = new LLMService({ qwenChatUrl: 'http://127.0.0.1:1', qwenChatModel: 'synthetic' });
