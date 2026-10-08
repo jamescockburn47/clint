@@ -1,6 +1,6 @@
 {
   "architecture": {
-    "summary": "Distributed system with the EVO X2 as the primary host. EVO runs the Node.js bot runtime, WhatsApp, HTTP API, scheduler, memory integration, and local AI services. The Pi is a native Rust dashboard and backup screen, while the laptop-hosted Clawd Console provides the richer web control surface. Two-tier cloud AI with local support: MiniMax M2.7 (default cloud) for most chat responses, Claude Opus 4.6 for premium or explicit-request paths. Local compute on EVO handles classification, planning support, vision, document summarisation, and embeddings — not the main chat response.",
+    "summary": "Distributed system with the EVO X2 as the primary host. EVO runs the Node.js bot runtime, WhatsApp, HTTP API, scheduler, memory integration, local AI services, and the default chat model. The Pi is a native Rust dashboard and backup screen, while the laptop-hosted Clawd Console provides the richer web control surface. Local-first AI: Qwen3.6-27B on EVO is the default non-image chat model, MiniMax M2.7 is the cloud fallback, and Claude Opus 4.6 is reserved for explicit premium or last-resort paths. Local compute on EVO also handles classification, planning support, vision, document parsing/summarisation, and embeddings.",
     "devices": [
       {
         "name": "Raspberry Pi 5",
@@ -16,7 +16,7 @@
         "role": "Primary bot runtime, local AI, memory, and voice host",
         "user": "james",
         "hardware": "AMD Ryzen AI Max+ 395 (16C/32T), Radeon 8060S (RDNA 3.5, 40 CUs, gfx1151), 128GB unified LPDDR5X (96GB GPU VRAM heap via UMA, ~32GB CPU-visible — do NOT use free/meminfo to judge model capacity, check /sys/class/drm/card1/device/mem_info_vram_total)",
-        "runs": "Node.js clawdbot runtime via systemd (WhatsApp, HTTP API on port 3000, scheduler, tools, ambient agency), Python voice listener (clawdbot-voice.service), llama.cpp with Qwen3-VL-30B-A3B (vision and document support, port 8080), Qwen3-4B (primary classifier/planner signal, port 8085), Qwen3-0.6B (last-resort fallback classifier, port 8081), Granite-Docling-258M F16 (structured document parsing, port 8084), Qwen3-Embedding-8B Q8_0 (4096-dim embeddings, port 8083), memory service on port 5100, and SearXNG on port 8888."
+        "runs": "Node.js clawdbot runtime via systemd (WhatsApp, HTTP API on port 3000, scheduler, tools, ambient agency), Python voice listener (clawdbot-voice.service), llama.cpp Qwen3.6-27B Q6_K with Qwen3.5-0.8B draft speculative decoding for default chat on port 8080, Qwen3-4B primary classifier/planner signal on port 8085, Granite-Docling-258M F16 structured document parsing on port 8084, Qwen3-Embedding-8B Q8_0 embeddings on port 8083, memory service on port 5100, and SearXNG on port 8888. The older 0.6B classifier service on port 8081 is not the active primary classifier path."
       },
       {
         "name": "Clawd Console",

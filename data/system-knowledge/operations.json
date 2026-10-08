@@ -13,15 +13,16 @@
   "techStack": {
     "runtime": "Node.js 20+ ESM with tsx runner for typed and mixed JS/TS modules",
     "whatsapp": "@whiskeysockets/baileys v6.x",
-    "cloud_models": "MiniMax M2.7 default, Claude Opus 4.6 on explicit request or premium-quality paths",
-    "local_models": "Qwen3-VL-30B, Qwen3-4B planner/classifier, Qwen3-0.6B fallback classifier, Granite-Docling, Qwen3-Embedding-8B",
+    "cloud_models": "MiniMax M2.7 fallback, Claude Opus 4.6 on explicit request or premium/last-resort paths",
+    "local_models": "Qwen3.6-27B Q6_K with Qwen3.5-0.8B draft speculative decoding for default chat, Qwen3-4B planner/classifier on port 8085, Granite-Docling, Qwen3-Embedding-8B",
     "dashboard": "Rust native Pi dashboard plus Next.js 16 Clawd Console on James's laptop",
     "storage": "JSON files under data/ with EVO memory service on port 5100"
   },
   "circuitBreakers": {
     "google": "3 failures, 2 minute reset, prefers cached widget data",
-    "minimax": "3 failures, 30 second reset, falls back to Claude",
-    "claude": "3 failures, 30 second reset",
+    "qwen": "3 failures, 30 second reset, falls back to MiniMax when local chat is unavailable",
+    "minimax": "3 failures, 30 second reset, cloud fallback after Qwen",
+    "claude": "3 failures, 30 second reset, explicit/premium or last-resort path",
     "memory": "health-aware queueing and local fallback behavior when EVO is unavailable"
   },
   "dataPersistence": {

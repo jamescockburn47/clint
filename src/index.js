@@ -23,6 +23,7 @@ import { initScheduler } from './scheduler.js';
 import { handleIncomingMessage, handleReaction, simulateTyping } from './message-handler.js';
 import { loadSkills } from './skill-registry.js';
 import { startHttpServer } from './http-server.js';
+import { initSpireChannel, stopSpireChannel } from './spire.js';
 import { cacheSentMessage, getCachedMessage, msgRetryCounterCache } from './message-cache.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -239,6 +240,7 @@ async function shutdown(signal) {
   try { await flushAudit(); } catch { /* intentional: best-effort flush on shutdown */ }
   try { flushBufferTimer(); await saveBuffers(); } catch { /* intentional: best-effort flush on shutdown */ }
   try { stopWidgetRefresh(); } catch { /* intentional: best-effort cleanup on shutdown */ }
+  try { stopSpireChannel(); } catch { /* intentional: best-effort cleanup on shutdown */ }
 
   logger.info('shutdown complete');
   process.exit(0);
@@ -257,3 +259,6 @@ startHttpServer(config.httpPort, {
 });
 
 startBot();
+
+// Join The Spire as a live orb (inert unless SPIRE_ENABLED + SPIRE_AGENT_KEY set).
+initSpireChannel();

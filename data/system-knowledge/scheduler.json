@@ -13,7 +13,7 @@
       "Trace analyser at 03:00 — analyses reasoning traces from last 7 days, outputs routing breakdown, needsPlan F1, plan success rates, timing percentiles, anomaly detection",
       "Ground truth harvester at 03:30 — extracts verifiable factual claims from yesterday's traces, searches authoritative sources, and stores verified fact-source pairs",
       "Daily backup at 03:00 — todos, soul, soul_history (7-day retention)",
-      "Project Deep Think at 23:00 — multi-model strategic analysis on active projects using MiniMax M2.7 (default) with Claude Opus 4.6 available on request. Runs web research via SearXNG to surface SOTA innovations, then feeds everything to the cloud model for deep analysis. Stores insights in memory and sends summary to James",
+      "Project Deep Think at 23:00 — legacy strategic analysis path on active projects. The current local-first stack uses Qwen on EVO by default with MiniMax fallback and Claude Opus 4.6 available on request. Runs web research via SearXNG to surface SOTA innovations, then stores insights in memory and sends summary to James",
       "Weekly memory review on Sundays at 20:00 — memory stats summary via WhatsApp",
       "Widget cache refresh every 5 minutes — Henry weekends, side gig, emails, calendar, weather",
       "EVO model warm-keeping every 10 minutes — prevents llama.cpp from evicting models from VRAM",

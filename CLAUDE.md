@@ -89,7 +89,7 @@ WhatsApp admin assistant bot ("Clint", previously "Clawd") running on EVO X2, wi
 
 **Who uses it:** James (owner, full access) and MG (wife — calendar reading, todos, travel, web search only).
 
-**Tech:** Node.js 20+ ESM (migrating to TypeScript file-by-file, `tsx` runner), Baileys (WhatsApp), three-tier AI (local EVO free → MiniMax cheap → Claude premium), Rust dashboard on Pi, JSON file persistence. No database.
+**Tech:** Node.js 20+ ESM (migrating to TypeScript file-by-file, `tsx` runner), Baileys (WhatsApp), three-tier AI (Qwen local on EVO → MiniMax fallback → Claude premium/last resort), Rust dashboard on Pi, JSON file persistence. No database.
 
 ## Architectural Invariants — BINDING
 
@@ -104,10 +104,11 @@ These are constraints the agent cannot infer from code. Do not revisit, reverse,
 - **All EVO servers run 24/7.** No sleep/wake timers.
 
 ### Model Routing
-- **MiniMax M2.7 is the default cloud model.** ~8% of Claude's cost. All chat responses.
-- **Claude Opus 4.6 only on explicit request** ("ask claude", "use opus") or as quality gate for PLANNING, LEGAL, long EMAIL.
-- **EVO local models for vision, doc summarisation, and classification ONLY.** Never generate chat responses.
-- **4B classifier is the PRIMARY routing layer.** Keywords are fallback only (EVO down).
+- **Qwen3.6-27B on EVO is the default chat model** for non-image WhatsApp responses. It runs through `llama-server-main` on port 8080 with speculative decoding on Vulkan.
+- **MiniMax M2.7 is fallback cloud** when Qwen is unreachable or unsuitable. It is no longer the normal default chat path.
+- **Claude Opus 4.6 only on explicit request** ("ask claude", "use opus") or as premium/last-resort fallback when configured.
+- **EVO local models also handle vision, document parsing/summarisation, embeddings, and classification/planning support.**
+- **4B planner/classifier on port 8085 is the PRIMARY routing layer.** Keywords are fallback only (EVO down). The old 0.6B classifier on port 8081 is not the active primary path.
 
 ### Voice Pipeline
 - **Piper TTS for everything.** Every voice command MUST produce audible output.

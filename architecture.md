@@ -83,8 +83,8 @@
 └─────────────────────────────────────────────────────────────────────┘
 
 External APIs:
-  - MiniMax M2.7 (default cloud, Anthropic-compatible) — chat + tool use
-  - Claude Opus 4.6 (premium, explicit request only) — quality gate
+  - MiniMax M2.7 (cloud fallback, Anthropic-compatible) — chat + tool use when Qwen is unavailable
+  - Claude Opus 4.6 (premium, explicit request / last resort) — quality gate
   - Google Calendar v3, Gmail v1
   - Darwin (National Rail), BR Fares, Amadeus (hotels)
   - Open-Meteo (weather, free)
@@ -94,8 +94,8 @@ External APIs:
 
 - **Runtime**: Node.js 20+ (ESM modules, `"type": "module"`)
 - **WhatsApp**: `@whiskeysockets/baileys` v6.x
-- **AI (cloud)**: `@anthropic-ai/sdk` — MiniMax M2.7 (default), Claude Opus 4.6 (premium)
-- **AI (local)**: llama.cpp (Vulkan) on EVO X2 — see [EVO X2 Reference](docs/evo-x2-reference.md)
+- **AI (local)**: llama.cpp (Vulkan) on EVO X2 — Qwen3.6-27B is the default chat model; see [EVO X2 Reference](docs/evo-x2-reference.md)
+- **AI (cloud)**: `@anthropic-ai/sdk` — MiniMax M2.7 fallback, Claude Opus 4.6 premium/explicit
 - **Google**: `googleapis` — Calendar v3, Gmail v1
 - **Weather**: Open-Meteo (free, no API key)
 - **Travel**: Darwin (trains), BR Fares (pricing), Amadeus (hotels)

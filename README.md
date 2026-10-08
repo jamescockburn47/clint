@@ -143,8 +143,8 @@ See `PLAN-agi-roadmap.md` for the full roadmap with detailed deliverables and ex
 |-------|-----------|
 | Runtime | Node.js 20+ (ESM, no TypeScript, no build step) |
 | WhatsApp | @whiskeysockets/baileys v6.x |
-| Cloud AI | MiniMax M2.7 (default), Claude Opus 4.6 (premium/quality gate) |
-| Local AI | llama.cpp (Vulkan) — Qwen3-30B-A3B, Qwen3-4B, Qwen3-0.6B, nomic-embed-text |
+| Local AI | llama.cpp (Vulkan) — Qwen3.6-27B default chat, Qwen3-4B classifier/planner, Granite-Docling, embeddings |
+| Cloud AI | MiniMax M2.7 fallback, Claude Opus 4.6 premium/explicit/last-resort |
 | Google | googleapis — Calendar v3, Gmail v1 |
 | Weather | Open-Meteo (free, no API key) |
 | Travel | Darwin (UK trains), BR Fares (tickets), Amadeus (hotels) |

@@ -7,6 +7,52 @@ import { getWorkingKnowledge, warmFromQuery } from './lquorum-rag.js';
 import { evoFetch, checkLlamaHealth } from './evo-client.js';
 import { TIMEOUTS, LIMITS } from './constants.js';
 
+const LIVE_BRIEFING_PATTERNS = [
+  /\b(up[\s-]?to[\s-]?date|current|latest|deep)\s+research\b/i,
+  /\b(?:research|brief|briefing|report)\b.*\b(reputational risk|reputational risks|association|due diligence|controversy)\b/i,
+  /\b(?:reputational risk|reputational risks|due diligence)\b.*\b(?:research|brief|briefing|report)\b/i,
+];
+const LIVE_BRIEFING_TOOL = 'live_briefing';
+const MAX_TOOL_LOOPS = 5;
+
+const BOT_MENTION_PREFIX = /^@?\d{8,}(?:@\w+)?\s+/;
+const BRIEFING_LEAD_IN_PATTERNS = [
+  /^do\s+some\s+up[\s-]?to[\s-]?date\s+research\s+(?:to\s+find\s+out\s+)?(?:on|about)\s+/i,
+  /^do\s+(?:a\s+)?deep\s+research\s+(?:to\s+find\s+out\s+)?(?:on|about)?\s*/i,
+  /^(?:research|brief|briefing|report)\s+(?:on|about)?\s*/i,
+];
+
+export function isForcedLiveBriefingRequest(context) {
+  return LIVE_BRIEFING_PATTERNS.some((pattern) => pattern.test(context || ''));
+}
+
+export function buildForcedLiveBriefingInput(context) {
+  let topic = (context || '').trim().replace(BOT_MENTION_PREFIX, '').trim();
+  for (const pattern of BRIEFING_LEAD_IN_PATTERNS) {
+    topic = topic.replace(pattern, '').trim();
+  }
+  return {
+    topic: topic || context.trim(),
+    depth: 'deep',
+  };
+}
+
+export function toolLoopExhaustedMessage() {
+  return 'I ran out of tool steps before I could produce the report. Please ask me to run it again, or say "use Claude" for the stronger tool path.';
+}
+
+function hasTool(tools, toolName) {
+  return tools.some((tool) => tool.name === toolName);
+}
+
+function hasPendingToolCalls(message) {
+  return message.tool_calls?.length > 0;
+}
+
+function shouldForceLiveBriefing({ context, tools, imageData }) {
+  return !imageData && isForcedLiveBriefingRequest(context) && hasTool(tools, LIVE_BRIEFING_TOOL);
+}
+
 // Convert Anthropic-style tool definitions to OpenAI function-calling format
 function toOpenAITools(tools) {
   return tools.map((t) => ({
@@ -44,6 +90,7 @@ Today is ${dateStr}, ${timeStr} (Europe/London).`;
   } else {
     base += `\n\n## Rules
 - Use tools to answer questions. Do not guess — call the tool and report what it returns.
+- Do NOT claim you are working in the background unless you have actually created a background job. If you cannot complete the answer now, say so.
 - For dates: compute relative dates from today. Use YYYY-MM-DD format. Use ISO 8601 for datetimes.
 - UK train station CRS codes: KGX=Kings Cross, YRK=York, LDS=Leeds, EDB=Edinburgh, DAR=Darlington.
 
@@ -60,7 +107,7 @@ Today is ${dateStr}, ${timeStr} (Europe/London).`;
   }
 
   base += `\n\n## Who you are
-You are Clint Westwood — an AGI experiment running on Pi 5 + EVO X2 + touchscreen. Three-tier AI: local (you, free), MiniMax M2.7 (cloud default), Claude Opus 4.6 (premium). You dream overnight (diary + fact extraction + soul evolution), have an agentic task planner, can self-modify via evolution pipeline, search the web, process images/documents locally, and have working memory from the LQuorum legal AI community. You are actively progressing toward AGI. Answer questions about yourself accurately.`;
+You are Clint Westwood — an AGI experiment running on Pi 5 + EVO X2 + touchscreen. Three-tier AI: local Qwen on EVO as the normal default, MiniMax M2.7 as cloud fallback, Claude Opus 4.6 as premium/explicit/last-resort path. You dream overnight (diary + fact extraction + soul evolution), have an agentic task planner, can self-modify via evolution pipeline, search the web, process images/documents locally, and have working memory from the LQuorum legal AI community. You are actively progressing toward AGI. Answer questions about yourself accurately.`;
 
   base += `\n\n## Memories
 You may have background knowledge about James injected below. Use it to understand context (e.g. preferences, people, places) but do NOT mix memory facts into tool result summaries. Memories inform your understanding — tool results are the data you report.`;
@@ -103,6 +150,10 @@ function validateToolParams(toolName, params) {
 export async function getEvoToolResponse(context, tools, senderJid, memoryFragment = '', category = null, imageData = null) {
   const baseUrl = config.evoLlmUrl;
   const openAITools = toOpenAITools(tools);
+  if (shouldForceLiveBriefing({ context, tools, imageData })) {
+    logger.info({ source: 'evo', tool: LIVE_BRIEFING_TOOL }, 'forcing live briefing for research/report request');
+    return executeTool(LIVE_BRIEFING_TOOL, buildForcedLiveBriefingInput(context), senderJid);
+  }
   warmFromQuery(context);
   const lquorumContext = getWorkingKnowledge();
   const systemPrompt = buildEvoSystemPrompt(category) + memoryFragment + (lquorumContext ? '\n\n' + lquorumContext : '');
@@ -147,9 +198,8 @@ export async function getEvoToolResponse(context, tools, senderJid, memoryFragme
 
     // Tool use loop
     let loopCount = 0;
-    const maxLoops = 5;
 
-    while (msg.tool_calls && msg.tool_calls.length > 0 && loopCount < maxLoops) {
+    while (hasPendingToolCalls(msg) && loopCount < MAX_TOOL_LOOPS) {
       loopCount++;
       messages.push({ role: 'assistant', content: msg.content || '', tool_calls: msg.tool_calls });
 
@@ -194,11 +244,19 @@ export async function getEvoToolResponse(context, tools, senderJid, memoryFragme
           }),
           timeout: TIMEOUTS.EVO_REQUEST,
         });
-      } catch { break; }
+      } catch (err) {
+        logger.warn({ err: err.message, source: 'evo', loopCount }, 'evo tool loop continuation failed');
+        return toolLoopExhaustedMessage();
+      }
 
       data = await res.json();
       msg = data.choices?.[0]?.message || {};
       logger.info({ loop: loopCount, source: 'evo' }, 'tool loop');
+    }
+
+    if (hasPendingToolCalls(msg) && loopCount >= MAX_TOOL_LOOPS) {
+      logger.warn({ source: 'evo', loopCount, maxLoops: MAX_TOOL_LOOPS }, 'evo tool loop exhausted');
+      return toolLoopExhaustedMessage();
     }
 
     const content = msg.content;

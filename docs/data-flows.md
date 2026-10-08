@@ -8,8 +8,8 @@
 4. If document (PDF/DOCX): parse on Pi (pdf-parse/mammoth) → summarise via EVO 30B → Claude receives summary (85% token reduction). Raw text cached
 5. `buffer.js` builds conversation context (last 10 messages, includes `[Current message]` section)
 6. `router.js` classifies activity category (4B classifier first → keyword rules → 0.6B fallback → default)
-7. `claude.js` gathers intelligence, scopes tools by category, and sends the main chat/tool request to the default cloud model (MiniMax M2.7 when configured, otherwise Claude)
-8. Local EVO models support classification, image understanding, and document summarisation; they do not generate the main user-facing chat response
+7. `claude.js` gathers intelligence, scopes tools by category, and sends the main chat/tool request to local Qwen on EVO by default, with MiniMax and Claude as fallback/explicit paths
+8. Local EVO models support default chat generation, classification/planning, image understanding, document parsing/summarisation, and embeddings
 9. Tool execution loop (up to 5 iterations) — `handler.js` dispatches, `audit.js` logs
 10. Final text response sent via Baileys
 11. `interaction-log.js` records request/response with routing metadata
@@ -22,10 +22,10 @@
 Message
   → 4B classifier (primary)
   → keywords / learned rules (fallback)
-  → 0.6B classifier (last classifier fallback)
+  → keyword/default fallback when classifier unavailable
   → default planning fallback
   → category-based tool scoping
-  → cloud response path (MiniMax by default, Claude on explicit request or fallback)
+  → local Qwen response path (MiniMax fallback, Claude explicit/premium)
 ```
 
 Router telemetry logged to `data/router-stats.jsonl`. Learned rules can still be loaded from `data/learned-rules.json`, but the old self-improvement cycle has been retired in favor of the Phase 5 overnight pipeline.
@@ -34,22 +34,23 @@ Router telemetry logged to `data/router-stats.jsonl`. Learned rules can still be
 
 | Model | Location | Port | Role |
 |-------|----------|------|------|
-| **MiniMax M2.7** | Cloud API | — | Default for chat, tools, email, planning |
-| **Claude Opus 4.6** | Cloud API | — | Premium — explicit request only, or MiniMax fallback |
-| **Qwen3-0.6B** | EVO X2 | 8081 | Fallback message classification |
-| **Qwen3-VL-30B-A3B** | EVO X2 | 8080 | Vision/image understanding, document summarisation |
+| **Qwen3.6-27B** | EVO X2 | 8080 | Default chat/tool model via llama.cpp/Vulkan |
+| **Qwen3-4B** | EVO X2 | 8085 | Primary classifier/planner signal |
+| **MiniMax M2.7** | Cloud API | — | Cloud fallback when Qwen is unavailable or unsuitable |
+| **Claude Opus 4.6** | Cloud API | — | Premium — explicit request, quality gate, or last resort |
+| **Granite-Docling** | EVO X2 | 8084 | Structured document parsing |
 | **Memory Service** | EVO X2 | 5100 | Dream storage, memory search, context injection |
 | **SearXNG** | EVO X2 | 8888 | Self-hosted web search |
 
 ### Key Rules
 
-- **MiniMax M2.7 is the default chat/tool model** when configured
-- **Claude Opus is reserved for explicit request or premium-quality paths**
-- **Local EVO models do not generate the main user-facing chat response**
+- **Qwen3.6-27B on EVO is the default chat/tool model**
+- **MiniMax M2.7 is cloud fallback when local Qwen is unavailable or unsuitable**
+- **Claude Opus is reserved for explicit request, premium-quality paths, or last resort**
 - **Images → EVO VL first** — Claude is fallback only
-- **Documents summarised via EVO** before Claude — 85% token reduction
+- **Documents are parsed/summarised via EVO** before being passed through the chat path
 - **Web search uses SearXNG** on EVO — free, self-hosted
-- **If MiniMax is unavailable, cloud requests fall back to Claude** — more expensive but never broken
+- **If Qwen is unavailable, cloud requests fall back to MiniMax**; Claude is the premium/last-resort path
 
 ## Dashboard Data Flow
 

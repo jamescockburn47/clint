@@ -35,18 +35,18 @@
 
 | Service | Port | Model | Notes |
 |---------|------|-------|-------|
-| `llama-server-main` | 8080 | Qwen3-VL-30B-A3B Q4_K_M | Vision + text, 32K ctx, DAYTIME (swaps at 06:00) |
-| `llama-server-coder` | 8080 | Qwen3-Coder-30B-A3B Q4_K_M | Coding, 64K ctx, no prompt cache, OVERNIGHT (swaps at 22:00) |
-| `llama-server-classifier` | 8081 | Qwen3-0.6B Q8_0 | Engagement + routing classification |
+| `llama-server-main` | 8080 | Qwen3.6-27B Q6_K + Qwen3.5-0.8B draft | Default local chat model, speculative decoding, Vulkan |
+| `llama-server-planner` | 8085 | Qwen3-4B | Primary classifier/planner signal |
+| `llama-server-classifier` | 8081 | Qwen3-0.6B Q8_0 | Legacy/last-resort classifier path; not normally active |
 | `llama-server-tts` | 8082 | Orpheus-3B Q8_0 | SNAC audio tokens. Running but Piper TTS used instead |
 | `llama-server-embed` | 8083 | nomic-embed-text-v1.5 Q8_0 | Always on, 140MB |
 | `llama-server-docling` | 8084 | Granite-Docling-258M F16 | Structured document parsing, 499MB |
 | `clawdbot-memory` | 5100 | — | FastAPI memory service |
 | SearXNG (Docker) | 8888 | — | Self-hosted web search, no API key |
 
-- **All servers run 24/7** (classifier, embed, docling, TTS, memory). Port 8080 swaps between VL-30B (daytime) and Coder-30B (overnight).
-- **Overnight model swap:** `llama-swap-coder.timer` at 22:00, `llama-swap-main.timer` at 06:00. Scripts: `/home/james/llama-swap-coder.sh`, `/home/james/llama-swap-main.sh`. `Conflicts=` prevents simultaneous. Coder uses `--cache-ram 0`.
-- **Dream mode runs at 22:05** — after the coder swap, uses the coding model.
+- **Qwen local is the default chat backend.** MiniMax is cloud fallback; Claude is explicit/premium/last-resort.
+- **Core local servers run 24/7** (main chat, planner/classifier, embed, docling, memory). The old 8081 classifier may be inactive when 8085 is healthy.
+- **Dream/overnight tasks use the local EVO model path** unless a stage explicitly invokes cloud quality gating.
 - **Ollama** is installed but NOT used. Can be stopped with `sudo systemctl stop ollama`.
 
 ## Model Notes

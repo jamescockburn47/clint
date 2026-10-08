@@ -379,19 +379,16 @@ export async function handleDebate(body) {
 
   const systemPrompt = buildDebateSystemPrompt({ round, role, context: context || [], prompt });
 
-  // Fast-path the bot-council smoke test. Its per-request timeout is 60s;
-  // a full tool-heavy research loop regularly exceeds that and triggers
-  // transport retries that double the load. Real debates use session ids
-  // shaped like `{uuid}` and get the full tool loop.
-  const isSmokeTest = typeof session_id === 'string' && session_id.startsWith('smoke-test');
-
   let rawText = null;
   let toolsUsed = [];
   let model = 'unknown';
 
-  // Primary: MiniMax M2.7 with tools (unless this is a smoke test).
+  // Primary: MiniMax M2.7 with the full tool loop. The council's smoke
+  // timeout was bumped to 180s (was 60s), so tool-heavy research fits
+  // comfortably — the smoke-fastpath that previously disabled tools
+  // when session_id started with "smoke-test" has been removed.
   try {
-    const result = await callMiniMaxWithTools(systemPrompt, !isSmokeTest);
+    const result = await callMiniMaxWithTools(systemPrompt);
     if (result?.text) {
       rawText = result.text;
       toolsUsed = result.toolsUsed;

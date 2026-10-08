@@ -1,19 +1,20 @@
 {
   "messageFlow": {
-    "summary": "WhatsApp message → trigger check (DMs always, most groups only on @mention/prefix/reply, with ambient LQCore agency on the silent group path) → cortex parallel fan-out (classification + memory + identity + dreams + insights + lquorum + speculative web prefetch) → route to MiniMax or Claude → tool execution loop (up to 5 iterations, web_search checks prefetch cache first) or task planner (multi-step) → response sent. The cortex layer replaced the old sequential pipeline — all intelligence streams now race in parallel, total gather time equals the slowest stream (~1s) instead of the sum of all streams (~3s). Two direct addressing modes remain: 'clawd' for full advisory mode (planner available), 'clawdsec' for secretary/admin mode (single-tool fast path). Ambient LQCore participation uses a separate intervention engine, not the normal addressed-message trigger path.",
+    "summary": "WhatsApp message → trigger check (DMs always, most groups only on @mention/prefix/reply, with ambient LQCore agency on the silent group path) → cortex parallel fan-out (classification + memory + identity + dreams + insights + lquorum + speculative web prefetch) → route to local Qwen on EVO by default, with MiniMax and Claude as fallbacks/explicit paths → tool execution loop (up to 5 iterations, web_search checks prefetch cache first) or task planner (multi-step) → response sent. The cortex layer replaced the old sequential pipeline — all intelligence streams now race in parallel, total gather time equals the slowest stream (~1s) instead of the sum of all streams (~3s). Two direct addressing modes remain: 'clawd' for full advisory mode (planner available), 'clawdsec' for secretary/admin mode (single-tool fast path). Ambient LQCore participation uses a separate intervention engine, not the normal addressed-message trigger path.",
     "router": {
       "layer1": "4B classifier (PRIMARY) — Qwen3-4B on EVO port 8085. Every message goes through this. Returns category + needsPlan + confidence. ~200ms. Handles all routing decisions including whether a request needs multi-step planning.",
       "layer2": "Keyword heuristics (FALLBACK) — only fires when 4B is unavailable (EVO down, circuit breaker open). Category-specific regex patterns. Cannot detect needsPlan.",
-      "layer3": "0.6B LLM classifier (LAST RESORT FALLBACK) — Qwen3-0.6B on EVO port 8081. Only fires if both the 4B classifier AND keyword heuristics fail or are unavailable. It is not the primary gate for group participation.",
-      "layer4": "Default — PLANNING with Claude/MiniMax, guaranteed correct but costs money.",
+      "layer3": "Keyword fallback + cloud/local fallback handling — the old 0.6B classifier on port 8081 is not the active primary route. If the 4B classifier is unavailable, deterministic keyword heuristics and safer defaults take over.",
+      "layer4": "Default response model — Qwen3.6-27B local on EVO. MiniMax is the cloud fallback; Claude is explicit/premium/last-resort when configured.",
       "writeDetection": "Any mutation intent (email drafts, calendar creates, soul changes) forces Claude — hallucinated args from local models cause real damage.",
       "learnedRules": "Persisted learned keyword rules (data/learned-rules.json) are still loaded every 5 minutes, but the old scheduled self-improvement cycle is no longer the main governing mechanism.",
       "secretaryMode": "'clawdsec' prefix bypasses the task planner entirely — needsPlan forced false regardless of what the 4B classifier thinks. Fast path for simple admin: check calendar, add todo, search email."
     },
     "modelSelection": {
-      "minimax_default": "MiniMax M2.7 — default cloud model for ALL chat responses. ~$0.003-0.01 per call. Anthropic-compatible API.",
-      "claude_premium": "Claude Opus 4.6 — premium model, only on explicit request ('ask claude', 'use opus'). Also quality gate for complex categories. ~$0.01-0.05 per call.",
-      "local_support": "EVO models handle classification (4B primary, 0.6B last-resort fallback), vision (VL-30B), document summarisation, and embeddings. Never generate chat responses.",
+      "qwen_default": "Qwen3.6-27B on EVO port 8080 — default local chat model for normal non-image responses, using llama.cpp/Vulkan with speculative decoding.",
+      "minimax_fallback": "MiniMax M2.7 — cloud fallback when Qwen is unreachable or unsuitable. Anthropic-compatible API.",
+      "claude_premium": "Claude Opus 4.6 — premium model, only on explicit request ('ask claude', 'use opus') or as last-resort fallback when configured.",
+      "local_support": "EVO models handle default chat, classification/planning support, vision/document paths, structured document parsing, and embeddings.",
       "classifier_4b": "Qwen3-4B on EVO (port 8085) — primary router. Category + needsPlan for every message. ~200ms."
     }
   }

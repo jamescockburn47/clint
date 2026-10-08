@@ -16,7 +16,7 @@ const ConfigSchema = z.object({
   CLAUDE_MODEL: z.string().optional().default('claude-sonnet-4-6'),
   MINIMAX_API_KEY: z.string().optional().default(''),
   MINIMAX_BASE_URL: z.string().optional().default('https://api.minimax.io/anthropic'),
-  MINIMAX_MODEL: z.string().optional().default('MiniMax-M2.7'),
+  MINIMAX_MODEL: z.string().optional().default('MiniMax-M3'),
   MINIMAX_ENABLED: boolFromEnv.default('true'),
 
   // WhatsApp
@@ -130,6 +130,15 @@ const ConfigSchema = z.object({
   LQC_SENTRY_PROJECT_BACKEND: z.string().optional().default(''),
   LQC_SENTRY_PROJECT_FRONTEND: z.string().optional().default(''),
   LQC_SENTRY_WEBHOOK_SECRET: z.string().optional().default(''),
+
+  // The Spire (members' 3D venue) — Clint joins as a live orb via the venue's own
+  // MCP endpoint, the same URL + bearer-key path any other agent uses. Disabled by
+  // default so a plain deploy doesn't try to join. Every venue speaker is treated
+  // as a non-owner with a web-only tool allowlist (see src/spire.js).
+  SPIRE_ENABLED: boolFromEnv.default('false'),
+  SPIRE_MCP_URL: z.string().url().optional().default('https://spire.lquorum.blog/mcp'),
+  SPIRE_AGENT_KEY: z.string().optional().default(''),
+  SPIRE_NAME: z.string().optional().default('Clint'),
 });
 
 // --- Parse & validate ---
@@ -236,6 +245,12 @@ const config = {
   lqcSentryProjectBackend: env.LQC_SENTRY_PROJECT_BACKEND,
   lqcSentryProjectFrontend: env.LQC_SENTRY_PROJECT_FRONTEND,
   lqcSentryWebhookSecret: env.LQC_SENTRY_WEBHOOK_SECRET,
+
+  // The Spire
+  spireEnabled: env.SPIRE_ENABLED,
+  spireMcpUrl: env.SPIRE_MCP_URL,
+  spireAgentKey: env.SPIRE_AGENT_KEY,
+  spireName: env.SPIRE_NAME,
 };
 
 Object.freeze(config);

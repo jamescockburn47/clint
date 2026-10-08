@@ -16,8 +16,8 @@
   "techStack": {
     "runtime": "Node.js 20+ (ESM modules, no TypeScript, no database, no build step)",
     "whatsapp": "@whiskeysockets/baileys v6.x",
-    "ai_cloud": "@anthropic-ai/sdk — MiniMax M2.7 (default, Anthropic-compatible API), Claude Opus 4.6 (premium, explicit request only)",
-    "ai_local": "llama.cpp (Vulkan) — Qwen3-VL-30B-A3B Q4_K_M (tool-calling + vision, 65K ctx), Qwen3-4B (primary classifier), Qwen3-0.6B Q8_0 (last-resort fallback classifier)",
+    "ai_cloud": "@anthropic-ai/sdk — MiniMax M2.7 fallback (Anthropic-compatible API), Claude Opus 4.6 premium/explicit/last-resort",
+    "ai_local": "llama.cpp (Vulkan) — Qwen3.6-27B Q6_K with Qwen3.5-0.8B draft speculative decoding for default chat, Qwen3-4B primary classifier/planner on port 8085, Granite-Docling for document parsing, Qwen3-Embedding-8B for embeddings",
     "google": "googleapis — Calendar v3, Gmail v1",
     "weather": "Open-Meteo (free, no API key)",
     "travel": "Darwin (live trains), BR Fares (ticket prices), Amadeus (hotels)",
@@ -29,8 +29,9 @@
   },
   "circuitBreakers": {
     "google": "3 failures → 2 min reset. Returns cached widget data.",
-    "minimax": "3 failures → 30s reset. Falls back to Claude on failure.",
-    "claude": "3 failures → 30s reset.",
+    "qwen": "3 failures → 30s reset. Falls back to MiniMax when local chat is unavailable.",
+    "minimax": "3 failures → 30s reset. Cloud fallback after Qwen.",
+    "claude": "3 failures → 30s reset. Explicit/premium or last-resort path.",
     "weather": "3 failures → 2 min reset. Returns last known conditions."
   },
   "dataPersistence": {

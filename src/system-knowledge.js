@@ -311,7 +311,7 @@ function generateKnowledgeEntries() {
 function generateFallbackEntries() {
   return [
     {
-      fact: 'Clint is a distributed WhatsApp admin assistant centered on the EVO X2. EVO runs the Node.js bot runtime (Baileys, HTTP API, scheduler), local AI services, memory integration, and the voice listener. The Raspberry Pi 5 is a Rust touchscreen dashboard and backup screen that connects to the EVO API. Cloud routing uses MiniMax M2.7 by default, with Claude Opus 4.6 only for premium or explicit-request paths.',
+      fact: 'Clint is a distributed WhatsApp admin assistant centered on the EVO X2. EVO runs the Node.js bot runtime (Baileys, HTTP API, scheduler), local AI services, memory integration, the voice listener, and the default Qwen local chat model. The Raspberry Pi 5 is a Rust touchscreen dashboard and backup screen that connects to the EVO API. MiniMax M2.7 is cloud fallback, with Claude Opus 4.6 only for premium, explicit-request, or last-resort paths.',
       tags: ['architecture', 'overview'],
     },
   ];
