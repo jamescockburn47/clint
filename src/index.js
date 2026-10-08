@@ -3,6 +3,7 @@
 // No business logic — delegates to message-handler, http-server, and other modules.
 
 import { makeWASocket, useMultiFileAuthState, makeCacheableSignalKeyStore, DisconnectReason, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
+import { backfillHistory, noteMessage, armOnDemandFetch } from './history-backfill.js';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import { execSync } from 'child_process';
@@ -24,6 +25,7 @@ import { initScheduler } from './scheduler.js';
 import { handleIncomingMessage, handleReaction, simulateTyping } from './message-handler.js';
 import { loadSkills } from './skill-registry.js';
 import { startHttpServer } from './http-server.js';
+import { initSpireChannel, stopSpireChannel } from './spire.js';
 import { cacheSentMessage, getCachedMessage, msgRetryCounterCache } from './message-cache.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -101,10 +103,17 @@ async function startBot() {
     logger: baileysLogger,
     browser: ['Clint', 'Chrome', '122.0.0'],
     markOnlineOnConnect: false,
-    syncFullHistory: false,
+    syncFullHistory: true,
     printQRInTerminal: false,
     msgRetryCounterCache,
     getMessage: async (key) => getCachedMessage(key.id),
+  });
+
+  // History backfill: capture messages missed while offline (or paged on-demand)
+  // into the same per-day logs the live path uses, so dream -> memory ingests them.
+  sock.ev.on('messaging-history.set', ({ messages }) => {
+    try { backfillHistory(messages || [], { botName: sock.user?.name || 'Clint' }); }
+    catch (err) { logger.error({ err: err.message }, 'messaging-history.set handler failed'); }
   });
 
   let pairingRequested = false;
@@ -154,9 +163,16 @@ async function startBot() {
         if (type !== 'notify') return;
         for (const msg of messages) {
           lastActivityTimestamp = Date.now();
+          noteMessage(msg);
           handleIncomingMessage(sock, msg, botJid);
         }
       });
+
+      // One-shot: page further back on the LQCore group once, ~25s after connect.
+      if (!globalThis._clawdHistoryOneShot) {
+        globalThis._clawdHistoryOneShot = true;
+        armOnDemandFetch(sock, config.lqcDevGroupJid, { count: 80 });
+      }
 
       // Capture message reactions (thumbs up/down) as quality feedback
       sock.ev.on('messages.reaction', (reactions) => {
@@ -255,6 +271,7 @@ async function shutdown(signal) {
   try { await flushAudit(); } catch { /* intentional: best-effort flush on shutdown */ }
   try { flushBufferTimer(); await saveBuffers(); } catch { /* intentional: best-effort flush on shutdown */ }
   try { stopWidgetRefresh(); } catch { /* intentional: best-effort cleanup on shutdown */ }
+  try { stopSpireChannel(); } catch { /* intentional: best-effort cleanup on shutdown */ }
 
   logger.info('shutdown complete');
   process.exit(0);
@@ -273,3 +290,6 @@ startHttpServer(config.httpPort, {
 });
 
 startBot();
+
+// Join The Spire as a live orb (inert unless SPIRE_ENABLED + SPIRE_AGENT_KEY set).
+initSpireChannel();

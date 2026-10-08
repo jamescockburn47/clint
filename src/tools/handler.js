@@ -17,6 +17,8 @@ import { overnightStatus } from './overnight-status.js';
 import * as lqcTools from './lqcouncil.js';
 import { moorsteadStatus, moorsteadBroadcast, moorsteadKick, moorsteadBairnsStatus, moorsteadBairnsSet, moorsteadOps, moorsteadOpsConfirm } from './moorstead.js';
 import { moorsteadCodeStage, moorsteadCodeConfirm } from './moorstead-code.js';
+import { steadsStatus, steadsMint, steadsRevoke, steadsRevokeConfirm, steadsMute } from './steads.js';
+import { spirePresence, spireFeedback, spireHealth } from './spire.js';
 // Phase 5: overnight-report.js retired. The overnight_report tool now
 // reads from the new morning-report.ts in src/overnight/.
 // Phase 5: evolution.js retired. The evolution_task tool now writes
@@ -205,6 +207,14 @@ const TOOL_MAP = new Map([
   ['moorstead_ops_confirm', moorsteadOpsConfirm],
   ['moorstead_code', moorsteadCodeStage],
   ['moorstead_code_confirm', moorsteadCodeConfirm],
+  ['steads_status', steadsStatus],
+  ['steads_mint', steadsMint],
+  ['steads_revoke', steadsRevoke],
+  ['steads_revoke_confirm', steadsRevokeConfirm],
+  ['steads_mute', steadsMute],
+  ['spire_presence', spirePresence],
+  ['spire_feedback', spireFeedback],
+  ['spire_health', spireHealth],
 
   // LQ Bot Council — read-only tools gated to LQC_DEV_GROUP_JID / owner DM
   // in group-tool-policy.js. Wiring live here so the dispatch table is

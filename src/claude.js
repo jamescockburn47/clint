@@ -21,9 +21,13 @@ import logger from './logger.js';
 export { getUsageStats, flushUsage };
 
 const CLAUDE_REQUEST_PATTERNS = /\b(?:ask claude|use claude|use opus|ask opus|claude only|opus only)\b/i;
-const OWNER_ONLY_TOOLS = new Set(['gmail_search', 'gmail_read', 'gmail_draft', 'gmail_confirm_send', 'soul_propose', 'soul_confirm', 'soul_learn', 'soul_forget', 'calendar_create_event', 'calendar_update_event', 'evolution_task', 'moorstead_status', 'moorstead_broadcast', 'moorstead_kick', 'moorstead_bairns_status', 'moorstead_bairns_set', 'moorstead_ops', 'moorstead_ops_confirm', 'moorstead_code', 'moorstead_code_confirm']);
+const OWNER_ONLY_TOOLS = new Set(['gmail_search', 'gmail_read', 'gmail_draft', 'gmail_confirm_send', 'soul_propose', 'soul_confirm', 'soul_learn', 'soul_forget', 'calendar_create_event', 'calendar_update_event', 'evolution_task', 'moorstead_status', 'moorstead_broadcast', 'moorstead_kick', 'moorstead_bairns_status', 'moorstead_bairns_set', 'moorstead_ops', 'moorstead_ops_confirm', 'moorstead_code', 'moorstead_code_confirm', 'steads_status', 'steads_mint', 'steads_revoke', 'steads_revoke_confirm', 'steads_mute']);
 const GROUP_MODE_TOOLS = TOOL_DEFINITIONS.filter(t => ['memory_search', 'web_search', 'web_fetch'].includes(t.name));
 const MAX_TOOL_RESULT = 1500;
+// The only tools a public-venue speaker (the Spire floor) may reach: public-web
+// lookups. Everything else — memory_search, soul_read, todos, projects, sovren —
+// can surface owner-private material, so it is withheld from venue interactions.
+const SPIRE_SAFE_TOOLS = new Set(['web_search', 'web_fetch']);
 const MAX_TOOL_LOOPS = 5;
 const QWEN_TOOL_SELECTION_MAX_TOKENS = 512;
 
@@ -353,8 +357,15 @@ class LLMService {
     const ownerJids = new Set();
     if (config.ownerJid) ownerJids.add(config.ownerJid);
     if (config.ownerLid) ownerJids.add(config.ownerLid);
-    const isOwner = !senderJid || ownerJids.size === 0 || ownerJids.has(senderJid);
-    const tools = this._getAvailableTools(isOwner, chatJid);
+    // forceRestricted (set by non-owner channels like the Spire floor) hard-locks
+    // to non-owner regardless of senderJid — so a caller can guarantee owner-only
+    // tools stay closed even when OWNER_JID is unconfigured (empty ownerJids would
+    // otherwise treat every sender as the owner).
+    const isOwner = options.forceRestricted ? false : (!senderJid || ownerJids.size === 0 || ownerJids.has(senderJid));
+    let tools = this._getAvailableTools(isOwner, chatJid);
+    // spireSafe (venue interactions): trim to the public-web allowlist so a
+    // passer-by cannot drive private-store reads (memory/soul) via prompt injection.
+    if (options.spireSafe) tools = tools.filter((t) => SPIRE_SAFE_TOOLS.has(t.name));
 
     // "Merlin" address → Moorstead-only warden mode (owner only). When James
     // opens a message with "Merlin", scope this reply strictly to the game:

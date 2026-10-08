@@ -28,6 +28,7 @@ import { tickLqcMonitor } from './tasks/lqc-monitor.js';
 import { checkWeeklyDigest } from './tasks/lqc-weekly-digest.js';
 import { checkFailureNudge } from './tasks/lqc-bot-failure-nudge.js';
 import { checkMoorsteadDigest } from './tasks/moorstead-digest.js';
+import { checkSteadsDigest } from './tasks/steads-digest.js';
 import { checkKnowledgeDrift } from './tasks/lqc-knowledge-drift.js';
 import { checkDailyHealth } from './tasks/lqc-daily-health.js';
 import { checkRepoPoll } from './tasks/lqc-repo-poll.js';
@@ -301,6 +302,7 @@ async function runScheduler() {
   }
   // Moorstead reporting is intentionally NOT gated — it's the one update kept.
   await runTask('moorsteadDigest', () => checkMoorsteadDigest(sendFn, todayStr, hours, minutes));
+  await runTask('steadsDigest', () => checkSteadsDigest(sendFn, todayStr, hours));
 
   // New four-stage overnight pipeline (spec §4)
   await runTask('consolidateShadow', () => checkConsolidateShadow(todayStr, hours, minutes));

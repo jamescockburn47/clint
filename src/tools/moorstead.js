@@ -162,24 +162,22 @@ function baseUrl() {
  */
 export async function moorsteadStatus() {
   try {
-    const res = await fetch(`${baseUrl()}/admin/presence`, {
-      method: 'GET',
-      headers: relayHeaders(),
+    // the relay serves only /ws + /status; live presence lives on the dash
+    const res = await fetch('http://127.0.0.1:8095/api/overview', {
+      signal: AbortSignal.timeout(4000),
     });
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      return `Moorstead relay error ${res.status}: ${body || res.statusText}`;
-    }
+    if (!res.ok) return `Moorstead dash error ${res.status}`;
     const data = await res.json();
-    const rooms = data.rooms || {};
-    const entries = Object.entries(rooms);
-    if (entries.length === 0) return '*Moorstead* — no active rooms.';
-    const parts = entries.map(([room, players]) => {
-      if (!players || players.length === 0) return `${room}: empty`;
-      const names = players.map(p => p.name || p.pid).join(', ');
-      return `${room}: ${names} (${players.length})`;
-    });
-    return `*Moorstead* — ${parts.join('. ')}.`;
+    const live = data.live || [];
+    if (live.length === 0) return '*Moorstead* — nobody on the moor right now.';
+    const byRoom = new Map();
+    for (const x of live) {
+      const room = x.room || 'solo';
+      if (!byRoom.has(room)) byRoom.set(room, []);
+      byRoom.get(room).push(`${x.name || '(nameless)'} (${x.loc || '?'}, day ${x.day ?? '?'})`);
+    }
+    const parts = [...byRoom.entries()].map(([room, ps]) => `${room}: ${ps.join(', ')}`);
+    return `*Moorstead* — ${live.length} on now. ${parts.join('. ')}.`;
   } catch (err) {
     return `Moorstead status failed: ${err.message}`;
   }

@@ -96,6 +96,20 @@ export function startHttpServer(port, deps) {
       return;
     }
 
+    // --- Steads notifications — the game ledgers POST events here (HMAC via
+    // STEADS_WEBHOOK_SECRET); notable ones DM James, all feed the daily digest.
+    if (req.method === 'POST' && path === '/api/steads-event') {
+      const { handleSteadsEvent } = await import('./steads/webhook.js');
+      const rawBody = await readBody(req);
+      const sig = req.headers['x-steads-signature'];
+      const out = await handleSteadsEvent({
+        rawBody,
+        signature: typeof sig === 'string' ? sig : String(sig || ''),
+        sendProactiveMessage,
+      });
+      return json(res, out.status, out.body);
+    }
+
     if (req.method === 'POST' && path === '/api/moorstead-event') {
       if (!checkAuth(req)) return json(res, 401, { error: 'Unauthorized' });
       if (!config.moorsteadEnabled) return json(res, 200, { ok: true, disabled: true });
