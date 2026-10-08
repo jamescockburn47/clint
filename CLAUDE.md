@@ -5,10 +5,19 @@
 > **14 September 2026: WhatsApp is decommissioned.** `clawdbot.service`, `llama-server-main.service`
 > (port 8080) and the WhatsApp pairing state are gone from the EVO. The "Deploying — BINDING" flow
 > below targeted the WhatsApp checkout and is retired. Clint's only conversational transport is the
-> Slack adapter (`src/slack/`), deployed under `/opt/clint-slack/releases/<id>` by
-> `../stage_slack_release.py` then `../install_slack_release.py --upgrade`; see
-> [docs/clint-slack-release.md](docs/clint-slack-release.md). Local model gateway: llama-swap on
-> `127.0.0.1:11435` serving `qwen3.8-27b`. Development source: this worktree on `codex/clint-overhaul`.
+> Slack adapter (`src/slack/`), deployed under `/opt/clint-slack/releases/<id>`; the scripts that
+> shipped the current release are in [tools/release/](tools/release/README.md) and the process is
+> described in [docs/clint-slack-release.md](docs/clint-slack-release.md). Local model gateway: llama-swap on
+> `127.0.0.1:11435` (`qwen3.8-27b`) or the Flash controller on `127.0.0.1:11437`.
+>
+> **8 October 2026: one repository.** The GitHub repo was renamed `jamescockburn47/clint` (old
+> `clawd-admin` URLs redirect). `main` carries every installed release as a commit, tagged
+> `clint-vNN` and byte-equal to its `/opt/clint-slack/releases/<id>` directory; the ledger is
+> `/opt/clint-slack/RELEASES.json` on EVO. The only development checkout is `C:\Users\James\Desktop\Clint`.
+> The per-topic candidate folders, reviews and deployment receipts stay in
+> `C:\Users\James\Documents\ChatGPT\Clint\evidence\` (private, not in git). The old WhatsApp-era
+> checkouts were archived to branches `archive/clawdbot-whatsapp-final-20260805` and
+> `archive/windows-clint-moorstead-phase1-20260708`, then deleted. PR #62 is merged.
 
 # CLAUDE.md — Clawdbot (Clawd Monet)
 
@@ -23,9 +32,9 @@
 | **Primary host** | **EVO X2** — bot, memory, models, voice, forge all run here |
 | **EVO X2 IP** | `10.0.0.2` direct ethernet (prefer) / `192.168.1.230` WiFi / `100.90.66.54` Tailscale |
 | **EVO user** | `james` (NOT `pi`) |
-| **EVO project path** | `~/clawdbot` |
+| **EVO project path** | `/opt/clint-slack/current` (release directory; `~/clawdbot` was removed 2026-10-08) |
 | **Pi (backup/screen)** | `192.168.1.211` LAN / `100.104.92.87` Tailscale (`cnc`), user `pi` |
-| **Local project path** | `C:\Users\James\Downloads\clawdbot-claude-code` |
+| **Local project path** | `C:\Users\James\Desktop\Clint` (clone of `github.com/jamescockburn47/clint`, branch `main`) |
 | **SSH key** | `C:\Users\James\.ssh\id_ed25519` |
 | **Node** | v20+, ESM (migrating to TypeScript with `tsx`), `node --env-file=.env src/index.js` |
 | **Pi dashboard** | Rust native app `clawd-dashboard` on Pi (NOT Chromium), 10.1" touchscreen 1024x600 |
